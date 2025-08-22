@@ -1,0 +1,44 @@
+from fastapi import APIRouter
+from fastapi.responses import HTMLResponse
+from .websocket_manager import manager
+
+router = APIRouter()
+
+# Debug endpoint for room connections
+@router.get("/debug/room/{room_id}")
+async def debug_room(room_id: int):
+    """Debug endpoint to check room connections"""
+    return manager.get_room_info(room_id)
+
+# Debug endpoint for all rooms
+@router.get("/debug/rooms")
+async def debug_all_rooms():
+    """Debug endpoint to check all room connections"""
+    from .websocket_manager import manager
+    return {
+        "all_rooms": manager.room_connections,
+        "active_connections": manager.active_connections
+    }
+
+# Test endpoint to check if server reloaded
+@router.get("/test-reload")
+async def test_reload():
+    """Test endpoint to check if server reloaded"""
+    return {"message": "Server reloaded!", "timestamp": "2025-08-21T15:52:00Z"}
+
+# Health check endpoint
+@router.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "Mapmo.vn"}
+
+# Root endpoint
+@router.get("/", response_class=HTMLResponse)
+async def root():
+    with open("templates/index.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
+
+# Favicon endpoint
+@router.get("/favicon.ico")
+async def favicon():
+    from .websocket_handlers import get_favicon_response
+    return get_favicon_response()

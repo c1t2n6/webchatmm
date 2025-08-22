@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapmo.vn - Chat Ẩn Danh</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8B5CF6',
+                        secondary: '#EC4899',
+                        accent: '#06B6D4'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .chat-bubble {
+            animation: fadeInUp 0.3s ease-out;
+        }
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .typing-indicator {
+            animation: pulse 1.5s infinite;
+        }
+        .reveal-progress {
+            transition: width 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    <!-- Navigation -->
+    <nav class="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-primary">Mapmo.vn</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="darkModeToggle" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                        </svg>
+                    </button>
+                    <button id="profileBtn" class="hidden px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                        Hồ sơ
+                    </button>
+                    <button id="logoutBtn" class="hidden px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                        Đăng xuất
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Landing Page -->
+        <div id="landingPage" class="text-center">
+            <div class="max-w-3xl mx-auto">
+                <h2 class="text-4xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
+                    Kết nối với người mới
+                </h2>
+                <p class="text-xl text-gray-600 dark:text-gray-300 mb-12">
+                    Chat ẩn danh, khám phá sở thích chung, và tìm kiếm mối quan hệ ý nghĩa
+                </p>
+                
+                <div class="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                    <button id="chatBtn" class="group p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary">
+                        <div class="text-4xl mb-4">💬</div>
+                        <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Chat Ẩn Danh</h3>
+                        <p class="text-gray-600 dark:text-gray-300">Trò chuyện text với người lạ</p>
+                    </button>
+                    
+                    <button id="voiceBtn" class="group p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary">
+                        <div class="text-4xl mb-4">📞</div>
+                        <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Voice Call</h3>
+                        <p class="text-gray-600 dark:text-gray-300">Gọi thoại (Sắp ra mắt)</p>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Login Modal -->
+        <div id="loginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">Đăng nhập</h3>
+                
+                <form id="loginForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tên đăng nhập</label>
+                        <input type="text" id="loginUsername" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mật khẩu</label>
+                        <input type="password" id="loginPassword" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white">
+                    </div>
+                    
+                    <button type="submit" class="w-full bg-primary text-white py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors">
+                        Đăng nhập
+                    </button>
+                </form>
+                
+                <div class="mt-4 text-center">
+                    <button id="showSignup" class="text-primary hover:underline">Chưa có tài khoản? Đăng ký</button>
+                </div>
+                
+                <button id="closeLoginModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Signup Modal -->
+        <div id="signupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">Đăng ký</h3>
+                
+                <form id="signupForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tên đăng nhập</label>
+                        <input type="text" id="signupUsername" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mật khẩu</label>
+                        <input type="password" id="signupPassword" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Xác nhận mật khẩu</label>
+                        <input type="password" id="signupConfirmPassword" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white">
+                    </div>
+                    
+                    <button type="submit" class="w-full bg-primary text-white py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors">
+                        Đăng ký
+                    </button>
+                </form>
+                
+                <div class="mt-4 text-center">
+                    <button id="showLogin" class="text-primary hover:underline">Đã có tài khoản? Đăng nhập</button>
+                </div>
+                
+                <button id="closeSignupModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Profile Setup Wizard -->
+        <div id="profileWizard" class="hidden">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Thiết lập hồ sơ</h3>
+                            <span id="wizardStep" class="text-sm text-gray-500 dark:text-gray-400">Bước 1/4</span>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                            <div id="wizardProgress" class="bg-primary h-2 rounded-full transition-all duration-300" style="width: 25%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 1: Basic Info -->
+                    <div id="step1" class="wizard-step">
+                        <h4 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Thông tin cơ bản</h4>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Biệt danh</label>
+                                <input type="text" id="nickname" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ngày sinh</label>
+                                <input type="date" id="dob" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Giới tính</label>
+                                <select id="gender" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white">
+                                    <option value="">Chọn giới tính</option>
+                                    <option value="Nam">Nam</option>
+                                    <option value="Nữ">Nữ</option>
+                                    <option value="Khác">Khác</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Preferences -->
+                    <div id="step2" class="wizard-step hidden">
+                        <h4 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Bạn muốn gặp ai?</h4>
+                        <div class="space-y-3">
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Nam" class="mr-3 text-primary focus:ring-primary">
+                                <span class="text-gray-700 dark:text-gray-300">Nam</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Nữ" class="mr-3 text-primary focus:ring-primary">
+                                <span class="text-gray-700 dark:text-gray-300">Nữ</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Tất cả" class="mr-3 text-primary focus:ring-primary">
+                                <span class="text-gray-700 dark:text-gray-300">Tất cả</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Needs -->
+                    <div id="step3" class="wizard-step hidden">
+                        <h4 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Bạn đang tìm kiếm gì?</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Nhẹ nhàng vui vẻ" class="mr-2 text-primary focus:ring-primary">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Nhẹ nhàng vui vẻ</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Nghiêm túc" class="mr-2 text-primary focus:ring-primary">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Nghiêm túc</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Khám phá" class="mr-2 text-primary focus:ring-primary">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Khám phá</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Kết hôn" class="mr-2 text-primary focus:ring-primary">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Kết hôn</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Bạn đời lâu dài" class="mr-2 text-primary focus:ring-primary">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Bạn đời lâu dài</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Mối quan hệ mở" class="mr-2 text-primary focus:ring-primary">
+                                <span class="text-sm text-sm text-gray-700 dark:text-gray-300">Mối quan hệ mở</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Kết bạn mới" class="mr-2 text-primary focus:ring-primary">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Kết bạn mới</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Interests -->
+                    <div id="step4" class="wizard-step hidden">
+                        <h4 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Sở thích của bạn (chọn tối đa 5)</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Gym" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">💪 Gym</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Nhảy" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">💃 Nhảy</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Ảnh" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">📷 Ảnh</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Cafe" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">☕ Cafe</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Du lịch" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">✈️ Du lịch</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Game" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">🎮 Game</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Đọc" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">📚 Đọc</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Nhạc" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">🎧 Nhạc</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Tình nguyện" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">❤️ Tình nguyện</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Phim" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">🍿 Phim</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Leo núi" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">🏔️ Leo núi</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Nghệ thuật" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">🎨 Nghệ thuật</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Ăn" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">🥘 Ăn</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Tâm linh" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">✨ Tâm linh</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" value="Thời trang" class="mr-2 text-primary focus:ring-primary interest-checkbox">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">👗 Thời trang</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between mt-8">
+                        <button id="prevStep" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors hidden">
+                            Quay lại
+                        </button>
+                        <div class="flex space-x-3">
+                            <button id="skipProfile" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                Bỏ qua
+                            </button>
+                            <button id="nextStep" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                                Tiếp theo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Waiting Room -->
+        <div id="waitingRoom" class="hidden">
+            <div class="max-w-2xl mx-auto text-center">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Phòng chờ</h3>
+                    <p class="text-gray-600 dark:text-gray-300 mb-8">Chọn cách kết nối với người khác</p>
+                    
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <button id="startChat" class="p-6 bg-gradient-to-r from-primary to-secondary text-white rounded-xl hover:shadow-lg transition-all duration-300">
+                            <div class="text-3xl mb-3">💬</div>
+                            <h4 class="text-xl font-semibold mb-2">Bắt đầu chat</h4>
+                            <p class="text-sm opacity-90">Tìm kiếm người phù hợp</p>
+                        </button>
+                        
+                        <button id="startVoice" class="p-6 bg-gradient-to-r from-accent to-primary text-white rounded-xl hover:shadow-lg transition-all duration-300 opacity-50 cursor-not-allowed">
+                            <div class="text-3xl mb-3">📞</div>
+                            <h4 class="text-xl font-semibold mb-2">Voice Call</h4>
+                            <p class="text-sm opacity-90">Sắp ra mắt</p>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Searching -->
+        <div id="searching" class="hidden">
+            <div class="max-w-md mx-auto text-center">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                    <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-6"></div>
+                    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Đang tìm kiếm...</h3>
+                    <p class="text-gray-600 dark:text-gray-300 mb-6">Tìm kiếm người phù hợp với bạn</p>
+                    <button id="cancelSearch" class="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                        Hủy tìm kiếm
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Room -->
+        <div id="chatRoom" class="hidden">
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
+                    <!-- Chat Header -->
+                    <div class="border-b border-gray-200 dark:border-gray-700 p-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                                    <span class="text-gray-600 dark:text-gray-300 font-semibold">?</span>
+                                </div>
+                                <div>
+                                    <h3 class="font-semibold text-gray-900 dark:text-white">Người lạ</h3>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">Đang nhập...</p>
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button id="keepActive" class="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors">
+                                    Giữ hoạt động
+                                </button>
+                                <button id="reportUser" class="px-3 py-1 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors">
+                                    Báo cáo
+                                </button>
+                                <button id="endChat" class="px-3 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors">
+                                    Kết thúc
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Messages -->
+                    <div id="chatMessages" class="h-96 overflow-y-auto p-4 space-y-4">
+                        <!-- Messages will be inserted here -->
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div class="border-t border-gray-200 dark:border-gray-700 p-4">
+                        <div class="flex space-x-3">
+                            <input type="text" id="messageInput" placeholder="Nhập tin nhắn..." class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white">
+                            <button id="sendMessage" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                                Gửi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Like Modal -->
+        <div id="likeModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Bạn có thích người ấy không?</h3>
+                <p class="text-gray-600 dark:text-gray-300 mb-6">Sau 5 phút trò chuyện, hãy cho biết cảm nhận của bạn</p>
+                
+                <div class="flex space-x-4 justify-center">
+                    <button id="likeYes" class="px-8 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-lg">
+                        ❤️ Có
+                    </button>
+                    <button id="likeNo" class="px-8 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-lg">
+                        ❌ Không
+                    </button>
+                </div>
+                
+                <div class="mt-6">
+                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div id="likeTimer" class="bg-red-500 h-2 rounded-full transition-all duration-1000" style="width: 100%"></div>
+                    </div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Thời gian còn lại: <span id="likeTimeLeft">30</span>s</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Chat Modal -->
+        <div id="endChatModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Cuộc trò chuyện kết thúc</h3>
+                <p class="text-gray-600 dark:text-gray-300 mb-6">Cảm ơn bạn đã sử dụng Mapmo.vn</p>
+                <button id="backToWaiting" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                    Về phòng chờ
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
