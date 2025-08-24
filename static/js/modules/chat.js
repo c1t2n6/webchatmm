@@ -1,5 +1,5 @@
 // Chat and Matching Module
-export class ChatModule {
+class ChatModule {
     constructor(app) {
         this.app = app;
         this.websocket = null;
@@ -80,52 +80,70 @@ export class ChatModule {
 
     connectWebSocket() {
         if (this.websocket) {
+            console.log('🔍 Chat - Closing existing WebSocket connection');
             this.websocket.close();
         }
 
         const token = localStorage.getItem('access_token');
+        console.log('🔍 Chat - Connecting to status WebSocket...');
         this.websocket = new WebSocket(`ws://${window.location.host}/ws/status?token=${token}`);
 
         this.websocket.onopen = () => {
-            console.log('WebSocket connected');
+            console.log('🔍 Chat - Status WebSocket connected successfully');
             this.reconnectAttempts = 0;
         };
 
         this.websocket.onmessage = (event) => {
+            console.log('🔍 Chat - Status WebSocket message received:', event.data);
             const data = JSON.parse(event.data);
             this.handleWebSocketMessage(data);
         };
 
         this.websocket.onclose = () => {
-            console.log('WebSocket disconnected');
+            console.log('🔍 Chat - Status WebSocket disconnected');
             this.handleWebSocketDisconnect();
         };
 
         this.websocket.onerror = (error) => {
-            console.error('WebSocket error:', error);
+            console.error('🔍 Chat - Status WebSocket error:', error);
         };
     }
 
     handleWebSocketMessage(data) {
+        console.log('🔍 Chat - WebSocket message received:', data);
+        console.log('🔍 Chat - Message type:', data.type);
+        
         switch (data.type) {
             case 'match_found':
+                console.log('🔍 Chat - Handling match_found');
                 this.handleMatchFound(data);
                 break;
             case 'chat_message':
+                console.log('🔍 Chat - Handling chat_message');
                 this.handleChatMessage(data);
                 break;
             case 'typing_indicator':
+                console.log('🔍 Chat - Handling typing_indicator');
                 this.handleTypingIndicator(data);
                 break;
             case 'like_prompt':
+                console.log('🔍 Chat - Handling like_prompt');
                 this.app.showLikeModal();
                 break;
             case 'image_reveal':
+                console.log('🔍 Chat - Handling image_reveal');
                 this.app.handleImageReveal(data);
                 break;
             case 'chat_ended':
+                console.log('🔍 Chat - Handling chat_ended');
                 this.app.handleChatEnded();
                 break;
+            case 'room_ended_by_user':
+                console.log('🔍 Chat - Handling room_ended_by_user');
+                this.handleRoomEndedByUser(data);
+                break;
+            default:
+                console.log('🔍 Chat - Unknown message type:', data.type);
         }
     }
 
@@ -162,28 +180,117 @@ export class ChatModule {
         }, 5 * 60 * 1000);
     }
 
+    handleRoomEndedByUser(data) {
+        console.log('🔍 Chat - Room ended by user notification received:', data);
+        console.log('🔍 Chat - Current WebSocket state:', this.websocket?.readyState);
+        console.log('🔍 Chat - Current chat WebSocket state:', this.chatWebSocket?.readyState);
+        
+        // Show modal thông báo thay vì showError
+        this.showRoomEndedModal(data.message || 'Phòng chat đã được kết thúc');
+        
+        // ❌ KHÔNG đóng chat WebSocket ngay lập tức
+        // Để notification được xử lý hoàn toàn và tránh race condition
+    }
+    
+    handleRoomClosed(data) {
+        console.log('🔍 Chat - Room closed notification received:', data);
+        console.log('🔍 Chat - Current WebSocket state:', this.websocket?.readyState);
+        console.log('🔍 Chat - Current chat WebSocket state:', this.chatWebSocket?.readyState);
+        
+        // Show modal thông báo thay vì showError
+        this.showRoomEndedModal(data.message || 'Phòng chat đã đóng');
+    }
+    
+    showRoomEndedModal(message) {
+        console.log('🔍 Chat - Showing room ended modal with message:', message);
+        
+        // Tạo modal HTML
+        const modalHTML = `
+            <div id="roomEndedModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+                    <div class="text-6xl mb-4">💬</div>
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Phòng Chat Đã Kết Thúc</h3>
+                    <p class="text-gray-600 dark:text-gray-300 mb-6">${message}</p>
+                    
+                    <button id="backToWaitingBtn" class="px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-lg">
+                        Về Phòng Chờ
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Thêm modal vào body
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Thêm event listener cho nút
+        const backToWaitingBtn = document.getElementById('backToWaitingBtn');
+        if (backToWaitingBtn) {
+            backToWaitingBtn.addEventListener('click', () => {
+                console.log('🔍 Chat - Back to waiting button clicked');
+                
+                // Đóng WebSocket connections trước khi reload
+                if (this.chatWebSocket) {
+                    console.log('🔍 Chat - Closing chat WebSocket before reload');
+                    this.chatWebSocket.close();
+                    this.chatWebSocket = null;
+                }
+                
+                if (this.websocket) {
+                    console.log('🔍 Chat - Closing status WebSocket before reload');
+                    this.websocket.close();
+                    this.websocket = null;
+                }
+                
+                // Reload page để về phòng chờ
+                console.log('🔍 Chat - Reloading page to return to waiting room');
+                window.location.reload();
+            });
+        }
+        
+        // Auto-close modal sau 10 giây nếu user không click
+        setTimeout(() => {
+            const modal = document.getElementById('roomEndedModal');
+            if (modal) {
+                console.log('🔍 Chat - Auto-closing room ended modal after 10 seconds');
+                modal.remove();
+                
+                // Tự động reload page
+                console.log('🔍 Chat - Auto-reloading page to return to waiting room');
+                window.location.reload();
+            }
+        }, 10000);
+    }
+
     connectChatWebSocket(roomId) {
         console.log('🔍 Chat - connectChatWebSocket called with roomId:', roomId);
         const token = localStorage.getItem('access_token');
+        console.log('🔍 Chat - Connecting to chat WebSocket for room:', roomId);
         const chatWs = new WebSocket(`ws://${window.location.host}/ws/chat/${roomId}?token=${token}`);
 
         chatWs.onopen = () => {
-            console.log('🔍 Chat - WebSocket connected to room:', roomId);
+            console.log('🔍 Chat - Chat WebSocket connected successfully to room:', roomId);
         };
 
         chatWs.onmessage = (event) => {
+            console.log('🔍 Chat - Chat WebSocket message received:', event.data);
             const data = JSON.parse(event.data);
             this.handleChatWebSocketMessage(data);
         };
 
         chatWs.onclose = () => {
-            console.log('🔍 Chat - WebSocket disconnected from room:', roomId);
+            console.log('🔍 Chat - Chat WebSocket disconnected from room:', roomId);
+        };
+
+        chatWs.onerror = (error) => {
+            console.error('🔍 Chat - Chat WebSocket error:', error);
         };
 
         this.chatWebSocket = chatWs;
     }
 
     handleChatWebSocketMessage(data) {
+        console.log('🔍 Chat - handleChatWebSocketMessage called with:', data);
+        
         switch (data.type) {
             case 'message':
                 this.addMessageToChat(data.message);
@@ -194,6 +301,16 @@ export class ChatModule {
             case 'stop_typing':
                 this.hideTypingIndicator(data.user_id);
                 break;
+            case 'room_closed':
+                console.log('🔍 Chat - Room closed notification received via chat WebSocket:', data);
+                this.handleRoomClosed(data);
+                break;
+            case 'room_ended_by_user':
+                console.log('🔍 Chat - Room ended by user notification received via chat WebSocket:', data);
+                this.handleRoomEndedByUser(data);
+                break;
+            default:
+                console.log('🔍 Chat - Unhandled message type:', data.type, data);
         }
     }
 
@@ -250,6 +367,24 @@ export class ChatModule {
         const chatMessages = document.getElementById('chatMessages');
         if (!chatMessages) return;
         
+        // Kiểm tra message object có đúng cấu trúc không
+        if (!message || typeof message !== 'object') {
+            console.error('🔍 Chat - Invalid message object:', message);
+            return;
+        }
+        
+        // Kiểm tra các trường bắt buộc
+        if (!message.content || !message.user_id || !message.timestamp) {
+            console.error('🔍 Chat - Message missing required fields:', message);
+            return;
+        }
+        
+        // Kiểm tra currentUser có tồn tại không
+        if (!this.app.currentUser || !this.app.currentUser.id) {
+            console.error('🔍 Chat - Current user not available:', this.app.currentUser);
+            return;
+        }
+        
         const messageDiv = document.createElement('div');
         const isOwnMessage = message.user_id === this.app.currentUser.id;
         
@@ -260,8 +395,8 @@ export class ChatModule {
                     ? 'bg-primary text-white' 
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
             }">
-                <p class="text-sm">${this.app.escapeHtml(message.content)}</p>
-                <p class="text-xs opacity-75 mt-1">${this.app.formatTime(message.timestamp)}</p>
+                <p class="text-sm">${this.app.escapeHtml ? this.app.escapeHtml(message.content) : message.content}</p>
+                <p class="text-xs opacity-75 mt-1">${this.app.formatTime ? this.app.formatTime(message.timestamp) : message.timestamp}</p>
             </div>
         `;
         
@@ -372,3 +507,6 @@ export class ChatModule {
         console.log('Chat message received:', data);
     }
 }
+
+// Make ChatModule globally accessible
+window.ChatModule = ChatModule;

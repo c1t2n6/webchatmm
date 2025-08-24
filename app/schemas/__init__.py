@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, EmailStr, validator, field_serializer
 from typing import Optional, List
 from datetime import date, datetime
 from enum import Enum
@@ -48,6 +48,14 @@ class UserResponse(UserBase):
     created_at: datetime
     current_room_id: Optional[int] = None
 
+    @field_serializer('dob')
+    def serialize_dob(self, value: date) -> str:
+        return value.isoformat() if value else None
+    
+    @field_serializer('created_at')
+    def serialize_created_at(self, value: datetime) -> str:
+        return value.isoformat() if value else None
+
     class Config:
         from_attributes = True
 
@@ -61,6 +69,10 @@ class UserSignupResponse(BaseModel):
     avatar_url: str
     role: str
     created_at: datetime
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, value: datetime) -> str:
+        return value.isoformat() if value else None
 
     class Config:
         from_attributes = True
@@ -93,6 +105,10 @@ class MessageResponse(BaseModel):
     timestamp: datetime
     user_id: int
 
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        return value.isoformat() if value else None
+
     class Config:
         from_attributes = True
 
@@ -105,6 +121,14 @@ class RoomResponse(BaseModel):
     reveal_level: int
     keep_active: bool
     last_message_time: datetime
+
+    @field_serializer('start_time')
+    def serialize_start_time(self, value: datetime) -> str:
+        return value.isoformat() if value else None
+    
+    @field_serializer('last_message_time')
+    def serialize_last_message_time(self, value: datetime) -> str:
+        return value.isoformat() if value else None
 
     class Config:
         from_attributes = True
@@ -138,6 +162,10 @@ class ReportResponse(BaseModel):
     room_id: Optional[int]
     reason: Optional[str]
     timestamp: datetime
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        return value.isoformat() if value else None
 
     class Config:
         from_attributes = True

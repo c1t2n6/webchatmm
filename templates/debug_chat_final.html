@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Chat.js - Final Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        #log { background-color: #f8f9fa; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+        button { padding: 12px 24px; margin: 8px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-info { background-color: #17a2b8; color: white; }
+        .btn-warning { background-color: #ffc107; color: #212529; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; font-weight: bold; }
+        .status.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Chat.js - Final Test</h1>
+        
+        <div class="debug-section info">
+            <h3>📋 Test Description</h3>
+            <p>This page will systematically test chat.js loading and identify the exact issue preventing ChatModule from being available.</p>
+        </div>
+        
+        <div class="debug-section">
+            <h3>📊 Test Controls</h3>
+            <button class="btn-primary" onclick="runAllTests()">🚀 Run All Tests</button>
+            <button class="btn-success" onclick="testFileContent()">📁 Test File Content</button>
+            <button class="btn-info" onclick="testDynamicLoading()">⚡ Test Dynamic Loading</button>
+            <button class="btn-warning" onclick="testIsolatedContext()">🔒 Test Isolated Context</button>
+            <button class="btn-danger" onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+        
+        <div class="debug-section">
+            <h3>📈 Test Results</h3>
+            <div id="status" class="status warning">Ready to test...</div>
+        </div>
+        
+        <div class="debug-section">
+            <h3>📝 Detailed Logs</h3>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Logging function
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logEntry.style.color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : type === 'warning' ? '#ffc107' : '#6c757d';
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        // Update status
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        // Clear log
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            updateStatus('Log cleared', 'info');
+        }
+        
+        // Test 1: Check file content directly
+        async function testFileContent() {
+            log('🔍 Test 1: Checking chat.js file content directly...', 'info');
+            updateStatus('Testing file content...', 'warning');
+            
+            try {
+                const response = await fetch('/static/js/modules/chat.js');
+                
+                if (response.ok) {
+                    const content = await response.text();
+                    log(`✅ File accessed successfully, size: ${content.length} characters`, 'success');
+                    
+                    // Check for class definition
+                    if (content.includes('class ChatModule')) {
+                        log('✅ File contains ChatModule class definition', 'success');
+                    } else {
+                        log('❌ File does not contain ChatModule class', 'error');
+                        updateStatus('Missing ChatModule class!', 'error');
+                        return;
+                    }
+                    
+                    // Check for global assignment
+                    if (content.includes('window.ChatModule = ChatModule')) {
+                        log('✅ File contains global assignment', 'success');
+                    } else {
+                        log('❌ File does not contain global assignment', 'error');
+                        updateStatus('Missing global assignment!', 'error');
+                        return;
+                    }
+                    
+                    // Check for syntax errors
+                    if (content.includes('toISOFormat')) {
+                        log('❌ File contains toISOFormat() - SYNTAX ERROR!', 'error');
+                        updateStatus('Syntax error: toISOFormat() found!', 'error');
+                        return;
+                    } else {
+                        log('✅ No toISOFormat() found', 'success');
+                    }
+                    
+                    // Try to evaluate content
+                    try {
+                        // Clear existing ChatModule
+                        if (window.ChatModule) {
+                            delete window.ChatModule;
+                            log('🧹 Cleared existing ChatModule', 'info');
+                        }
+                        
+                        log('🔍 Attempting to evaluate file content...', 'info');
+                        eval(content);
+                        log('✅ File content evaluated successfully - NO SYNTAX ERRORS', 'success');
+                        
+                        if (typeof window.ChatModule !== 'undefined') {
+                            log('✅ ChatModule available after evaluation!', 'success');
+                            updateStatus('File content is valid!', 'success');
+                            
+                            // Test instance creation
+                            try {
+                                const mockApp = { 
+                                    currentUser: { id: 999 },
+                                    showWarning: msg => log(`⚠️ ${msg}`, 'warning'),
+                                    showError: msg => log(`❌ ${msg}`, 'error'),
+                                    showSuccess: msg => log(`✅ ${msg}`, 'success')
+                                };
+                                const instance = new window.ChatModule(mockApp);
+                                log('✅ ChatModule instance created successfully!', 'success');
+                                
+                                // Check methods
+                                if (typeof instance.handleRoomEndedByUser === 'function') {
+                                    log('✅ handleRoomEndedByUser method exists', 'success');
+                                } else {
+                                    log('❌ handleRoomEndedByUser method missing', 'error');
+                                }
+                                
+                            } catch (instanceError) {
+                                log(`❌ Failed to create instance: ${instanceError}`, 'error');
+                            }
+                        } else {
+                            log('❌ ChatModule not available after evaluation', 'error');
+                            updateStatus('ChatModule not available after eval!', 'error');
+                        }
+                        
+                    } catch (evalError) {
+                        log(`❌ SYNTAX ERROR in file: ${evalError.message}`, 'error');
+                        log(`❌ Error details: ${evalError.stack}`, 'error');
+                        updateStatus(`Syntax error: ${evalError.message}`, 'error');
+                    }
+                    
+                } else {
+                    log(`❌ Failed to access file: ${response.status} ${response.statusText}`, 'error');
+                    updateStatus(`File access failed: ${response.status}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Network error: ${error}`, 'error');
+                updateStatus('Network error occurred', 'error');
+            }
+        }
+        
+        // Test 2: Dynamic script loading
+        function testDynamicLoading() {
+            log('🔍 Test 2: Testing dynamic script loading...', 'info');
+            updateStatus('Testing dynamic loading...', 'warning');
+            
+            // Remove existing ChatModule
+            if (window.ChatModule) {
+                delete window.ChatModule;
+                log('🧹 Cleared existing ChatModule', 'info');
+            }
+            
+            // Remove existing script if any
+            const existingScript = document.querySelector('script[src="/static/js/modules/chat.js"]');
+            if (existingScript) {
+                existingScript.remove();
+                log('🧹 Removed existing script tag', 'info');
+            }
+            
+            // Create new script element
+            const script = document.createElement('script');
+            script.src = '/static/js/modules/chat.js?' + Date.now(); // Cache busting
+            script.type = 'text/javascript';
+            
+            script.onload = function() {
+                log('✅ Script loaded successfully', 'success');
+                
+                setTimeout(() => {
+                    if (typeof window.ChatModule !== 'undefined') {
+                        log('✅ ChatModule found after dynamic loading!', 'success');
+                        updateStatus('Dynamic loading successful!', 'success');
+                    } else {
+                        log('❌ ChatModule not found after dynamic loading', 'error');
+                        updateStatus('Dynamic loading failed - ChatModule not found', 'error');
+                    }
+                }, 100);
+            };
+            
+            script.onerror = function(error) {
+                log(`❌ Script loading failed: ${error}`, 'error');
+                updateStatus('Script loading failed', 'error');
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        // Test 3: Isolated context test
+        function testIsolatedContext() {
+            log('🔍 Test 3: Testing in isolated context...', 'info');
+            updateStatus('Testing isolated context...', 'warning');
+            
+            // Create iframe to isolate execution context
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = 'data:text/html,<html><head><script src="/static/js/modules/chat.js"></script><script>window.parent.postMessage({type: "test", ChatModule: typeof ChatModule, success: true}, "*");</script></head></html>';
+            
+            iframe.onload = function() {
+                log('✅ Iframe loaded', 'info');
+            };
+            
+            window.addEventListener('message', function(event) {
+                if (event.data.type === 'test') {
+                    log(`🔍 Iframe result: ChatModule = ${event.data.ChatModule}`, 'info');
+                    if (event.data.ChatModule !== 'undefined') {
+                        log('✅ ChatModule works in isolated context!', 'success');
+                        updateStatus('Isolated context test successful!', 'success');
+                    } else {
+                        log('❌ ChatModule fails in isolated context', 'error');
+                        updateStatus('Isolated context test failed', 'error');
+                    }
+                    document.body.removeChild(iframe);
+                }
+            });
+            
+            document.body.appendChild(iframe);
+        }
+        
+        // Run all tests
+        function runAllTests() {
+            log('🚀 Running all tests...', 'info');
+            updateStatus('Running all tests...', 'warning');
+            
+            setTimeout(() => testFileContent(), 500);
+            setTimeout(() => testDynamicLoading(), 1500);
+            setTimeout(() => testIsolatedContext(), 2500);
+        }
+        
+        // Error handlers
+        window.addEventListener('error', (event) => {
+            log(`❌ JavaScript Error: ${event.message}`, 'error');
+            log(`❌ File: ${event.filename}`, 'error');
+            log(`❌ Line: ${event.lineno}`, 'error');
+        });
+        
+        window.addEventListener('unhandledrejection', (event) => {
+            log(`❌ Unhandled Promise Rejection: ${event.reason}`, 'error');
+        });
+        
+        // Initialize
+        log('🚀 Debug page loaded successfully', 'success');
+        updateStatus('Ready to test', 'info');
+    </script>
+</body>
+</html>

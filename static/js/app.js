@@ -4,7 +4,7 @@ console.log("=== MAPMO APP LOADED ===");
 // Import modules
 import { AuthModule } from './modules/auth.js';
 import { ProfileModule } from './modules/profile.js';
-import { ChatModule } from './modules/chat.js';
+// ChatModule is loaded as a global script
 import { LikeModule } from './modules/like.js';
 import { UIModule } from './modules/ui.js';
 import { UtilsModule } from './modules/utils.js';
@@ -19,7 +19,17 @@ class MapmoApp {
         console.log('🔍 App - Initializing modules...');
         this.authModule = new AuthModule(this);
         this.profileModule = new ProfileModule(this);
-        this.chatModule = new ChatModule(this);
+        
+        // Check if ChatModule is available
+        if (typeof window.ChatModule !== 'undefined') {
+            console.log('✅ ChatModule found, initializing...');
+            this.chatModule = new window.ChatModule(this);
+        } else {
+            console.error('❌ ChatModule not found! Waiting for it...');
+            // Wait for ChatModule to be available
+            this.waitForChatModule();
+        }
+        
         this.likeModule = new LikeModule(this);
         this.uiModule = new UIModule(this);
         this.utilsModule = new UtilsModule(this);
@@ -279,6 +289,34 @@ class MapmoApp {
 
     handleChatEnded() {
         this.utilsModule.handleChatEnded();
+    }
+    
+    // Wait for ChatModule to be available
+    waitForChatModule() {
+        console.log('🔍 Waiting for ChatModule...');
+        const checkInterval = setInterval(() => {
+            if (typeof window.ChatModule !== 'undefined') {
+                console.log('✅ ChatModule found! Initializing...');
+                clearInterval(checkInterval);
+                this.chatModule = new window.ChatModule(this);
+                console.log('✅ ChatModule initialized successfully!');
+            }
+        }, 100);
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            if (!this.chatModule || typeof this.chatModule.startSearch === 'undefined') {
+                console.error('❌ ChatModule still not available after timeout!');
+                // Create fallback
+                this.chatModule = {
+                    startSearch: () => this.utilsModule.showError('ChatModule not loaded'),
+                    cancelSearch: () => this.utilsModule.showError('ChatModule not loaded'),
+                    handleWebSocketMessage: () => console.error('ChatModule not loaded'),
+                    handleRoomEndedByUser: () => console.error('ChatModule not loaded')
+                };
+            }
+        }, 5000);
     }
 }
 

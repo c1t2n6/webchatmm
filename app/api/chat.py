@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 import json
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional
+import structlog
 
 from app.database import get_db
 from app.models import User, Room, Message, MatchingQueue
@@ -12,6 +13,8 @@ from app.utils.auth_utils import get_current_user
 from app.utils.matching import matching_engine
 from app.utils.image_utils import image_processor
 from app.websocket_manager import manager
+
+logger = structlog.get_logger()
 
 router = APIRouter()
 security = HTTPBearer()
@@ -23,26 +26,36 @@ class RoomManager:
     def validate_user_room_access(user: User, room_id: int, db: Session) -> tuple[bool, Optional[Room], Optional[str]]:
         """Validate if user has access to the specified room"""
         try:
-            # Check if user is in this room
-            if user.current_room_id != room_id:
-                return False, None, "Bạn không có quyền truy cập phòng này"
+
             
-            # Get room
+            # Get room first
             room = db.query(Room).filter(Room.id == room_id).first()
             if not room:
+
                 return False, None, "Không tìm thấy phòng chat"
+            
+
             
             # Check if room is still active
             if room.end_time:
+
                 return False, None, "Phòng chat đã kết thúc"
             
-            # Verify user belongs to this room
+            # Verify user belongs to this room (either user1 or user2)
             if room.user1_id != user.id and room.user2_id != user.id:
+
                 return False, None, "Bạn không có quyền truy cập phòng này"
+            
+
+            
+            # Note: We don't strictly require current_room_id to match
+            # because user might want to end a room they were previously in
+            # or there might be sync issues between current_room_id and actual room membership
             
             return True, room, None
             
         except Exception as e:
+
             return False, None, f"Lỗi xác thực phòng: {str(e)}"
     
     @staticmethod
@@ -370,7 +383,32 @@ async def end_session(
     """End chat session"""
     
     try:
-        # Validate room access
+        # Get room first to check its current state
+        room = db.query(Room).filter(Room.id == room_id).first()
+        if not room:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Không tìm thấy phòng chat"
+            )
+        
+        # Check if room is already ended
+        if room.end_time:
+            # Room already ended, check who ended it
+            ended_by_user = None
+            if room.user1_id == current_user.id:
+                ended_by_user = "bạn"
+            elif room.user2_id == current_user.id:
+                ended_by_user = "người chat khác"
+            else:
+                ended_by_user = "người dùng khác"
+            
+            return {
+                "message": f"Phòng chat đã được kết thúc trước đó bởi {ended_by_user}",
+                "room_already_ended": True,
+                "ended_at": room.end_time.isoformat()
+            }
+        
+        # Validate room access (only if room is still active)
         has_access, room, error_msg = RoomManager.validate_user_room_access(current_user, room_id, db)
         if not has_access:
             raise HTTPException(
@@ -394,8 +432,60 @@ async def end_session(
         
         db.commit()
         
-        # Force close WebSocket connections for this room in background
-        background_tasks.add_task(manager.force_close_room, room_id)
+        # Send immediate notification to both users via WebSocket BEFORE closing connections
+        try:
+            # Send room ended notification to both users
+            room_ended_notification = {
+                "type": "room_ended_by_user",
+                "room_id": room_id,
+                "ended_by_user_id": current_user.id,
+                "message": f"Phòng chat đã được kết thúc bởi {current_user.nickname}",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+            logger.info(f"🔍 Backend - Sending room ended notification: {room_ended_notification}")
+            
+            # Send to user1 if they have active WebSocket
+            if user1 and user1.id != current_user.id:
+                logger.info(f"🔍 Backend - Attempting to notify user1: {user1.id}")
+                try:
+                    # Try to send via personal message first (status WebSocket)
+                    await manager.send_personal_message(json.dumps(room_ended_notification), user1.id)
+                    logger.info(f"✅ Backend - Room ended notification sent to user {user1.id} via personal message")
+                except Exception as e:
+                    logger.warning(f"⚠️ Backend - Could not send personal notification to user {user1.id}: {e}")
+                    
+                    # Fallback: try to send via room broadcast
+                    try:
+                        await manager.broadcast_to_room(json.dumps(room_ended_notification), room_id, exclude_user=current_user.id)
+                        logger.info(f"✅ Backend - Room ended notification sent to user {user1.id} via room broadcast")
+                    except Exception as e2:
+                        logger.warning(f"⚠️ Backend - Could not send room broadcast notification to user {user1.id}: {e2}")
+            
+            # Send to user2 if they have active WebSocket  
+            if user2 and user2.id != current_user.id:
+                logger.info(f"🔍 Backend - Attempting to notify user2: {user2.id}")
+                try:
+                    # Try to send via personal message first (status WebSocket)
+                    await manager.send_personal_message(json.dumps(room_ended_notification), user2.id)
+                    logger.info(f"✅ Backend - Room ended notification sent to user {user2.id} via personal message")
+                except Exception as e:
+                    logger.warning(f"⚠️ Backend - Could not send personal notification to user {user2.id}: {e}")
+                    
+                    # Fallback: try to send via room broadcast
+                    try:
+                        await manager.broadcast_to_room(json.dumps(room_ended_notification), room_id, exclude_user=current_user.id)
+                        logger.info(f"✅ Backend - Room ended notification sent to user {user2.id} via room broadcast")
+                    except Exception as e2:
+                        logger.warning(f"⚠️ Backend - Could not send room broadcast notification to user {user2.id}: {e2}")
+                
+        except Exception as e:
+            # Log error but don't fail the request
+            logger.error(f"❌ Backend - Error sending room ended notifications: {e}")
+        
+        # Force close WebSocket connections for this room in background AFTER sending notifications
+        # Add delay to ensure notifications are received before closing connections
+        background_tasks.add_task(manager.force_close_room_with_delay, room_id, delay_seconds=3)
         
         return {"message": "Cuộc trò chuyện đã kết thúc"}
         

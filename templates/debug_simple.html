@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        #log { background-color: #f8f9fa; padding: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Simple Debug</h1>
+    
+    <div class="debug-section info">
+        <h3>📋 Debug Steps</h3>
+        <p>1. Check if chat.js loads</p>
+        <p>2. Check if ChatModule is available</p>
+        <p>3. Check browser console for errors</p>
+    </div>
+    
+    <div class="debug-section">
+        <h3>📊 Status</h3>
+        <div id="status">Loading...</div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>📝 Logs</h3>
+        <div id="log"></div>
+    </div>
+
+    <!-- Test 1: Load chat.js -->
+    <script>
+        console.log('🚀 Starting debug...');
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logEntry.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        // Test 1: Check if script tag loads
+        log('📋 Test 1: Checking script loading...', 'info');
+        
+        // Test 2: Check if ChatModule exists
+        setTimeout(() => {
+            log('📋 Test 2: Checking ChatModule availability...', 'info');
+            
+            if (typeof window.ChatModule !== 'undefined') {
+                log('✅ ChatModule found!', 'success');
+                log(`ChatModule type: ${typeof window.ChatModule}`, 'success');
+                log(`ChatModule constructor: ${window.ChatModule.name}`, 'success');
+                
+                // Test 3: Try to create instance
+                try {
+                    const mockApp = {
+                        showWarning: (msg) => log(`⚠️ Warning: ${msg}`, 'info'),
+                        showError: (msg) => log(`❌ Error: ${msg}`, 'error'),
+                        showSuccess: (msg) => log(`✅ Success: ${msg}`, 'success'),
+                        showWaitingRoom: () => log('🏠 Redirecting to waiting room...', 'info'),
+                        currentUser: { id: 999, nickname: 'TestUser' }
+                    };
+                    
+                    const chatModule = new window.ChatModule(mockApp);
+                    log('✅ ChatModule instance created successfully!', 'success');
+                    
+                    // Test 4: Check methods
+                    if (typeof chatModule.handleWebSocketMessage === 'function') {
+                        log('✅ handleWebSocketMessage method exists', 'success');
+                    } else {
+                        log('❌ handleWebSocketMessage method missing', 'error');
+                    }
+                    
+                    if (typeof chatModule.handleRoomEndedByUser === 'function') {
+                        log('✅ handleRoomEndedByUser method exists', 'success');
+                    } else {
+                        log('❌ handleRoomEndedByUser method missing', 'error');
+                    }
+                    
+                    document.getElementById('status').innerHTML = '<strong style="color: green;">✅ SUCCESS: ChatModule working!</strong>';
+                    
+                } catch (error) {
+                    log(`❌ Failed to create ChatModule instance: ${error}`, 'error');
+                    document.getElementById('status').innerHTML = '<strong style="color: red;">❌ ERROR: Cannot create instance</strong>';
+                }
+                
+            } else {
+                log('❌ ChatModule not found!', 'error');
+                log('🔍 Checking what is available in window object...', 'info');
+                
+                // List all global variables
+                const globals = Object.keys(window).filter(key => 
+                    key.toLowerCase().includes('chat') || 
+                    key.toLowerCase().includes('module') ||
+                    key.toLowerCase().includes('app')
+                );
+                
+                if (globals.length > 0) {
+                    log(`🔍 Found related globals: ${globals.join(', ')}`, 'info');
+                } else {
+                    log('🔍 No related globals found', 'info');
+                }
+                
+                document.getElementById('status').innerHTML = '<strong style="color: red;">❌ ERROR: ChatModule not loaded</strong>';
+            }
+        }, 1000);
+        
+        // Test 0: Check for JavaScript errors
+        window.addEventListener('error', (event) => {
+            log(`❌ JavaScript Error: ${event.message} at ${event.filename}:${event.lineno}`, 'error');
+        });
+        
+        window.addEventListener('unhandledrejection', (event) => {
+            log(`❌ Unhandled Promise Rejection: ${event.reason}`, 'error');
+        });
+        
+        log('🚀 Debug script loaded', 'success');
+    </script>
+    
+    <!-- Advanced test buttons -->
+    <button onclick="testChatJsDirectly()" style="background-color: #28a745; color: white; padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer;">Test File Content</button>
+    <button onclick="testDynamicLoading()" style="background-color: #17a2b8; color: white; padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer;">Test Dynamic Loading</button>
+    <button onclick="testMinimalLoading()" style="background-color: #6f42c1; color: white; padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer;">Test Isolated Loading</button>
+    
+    <!-- Advanced testing functions -->
+    <script>
+        // Test file content directly
+        async function testChatJsDirectly() {
+            log('🔍 Testing chat.js file content directly...', 'info');
+            
+            try {
+                const response = await fetch('/static/js/modules/chat.js');
+                
+                if (response.ok) {
+                    const content = await response.text();
+                    log(`✅ File accessed successfully, size: ${content.length} characters`, 'success');
+                    
+                    // Check file content
+                    if (content.includes('class ChatModule')) {
+                        log('✅ File contains ChatModule class definition', 'success');
+                    } else {
+                        log('❌ File does not contain ChatModule class', 'error');
+                    }
+                    
+                    if (content.includes('window.ChatModule = ChatModule')) {
+                        log('✅ File contains global assignment', 'success');
+                    } else {
+                        log('❌ File does not contain global assignment', 'error');
+                    }
+                    
+                    // Check for syntax errors
+                    if (content.includes('toISOFormat')) {
+                        log('❌ File still contains toISOFormat() - SYNTAX ERROR!', 'error');
+                    } else {
+                        log('✅ No toISOFormat() found', 'success');
+                    }
+                    
+                    // Try to evaluate the content
+                    try {
+                        // Clear existing ChatModule
+                        if (window.ChatModule) {
+                            delete window.ChatModule;
+                        }
+                        
+                        eval(content);
+                        log('✅ File content evaluated successfully - NO SYNTAX ERRORS', 'success');
+                        
+                        if (typeof window.ChatModule !== 'undefined') {
+                            log('✅ ChatModule available after evaluation!', 'success');
+                            
+                            // Try to create instance
+                            try {
+                                const mockApp = { 
+                                    currentUser: { id: 999 },
+                                    showWarning: msg => log(`⚠️ ${msg}`, 'info'),
+                                    showError: msg => log(`❌ ${msg}`, 'error'),
+                                    showSuccess: msg => log(`✅ ${msg}`, 'success')
+                                };
+                                const instance = new window.ChatModule(mockApp);
+                                log('✅ ChatModule instance created successfully!', 'success');
+                                
+                                // Check methods
+                                if (typeof instance.handleRoomEndedByUser === 'function') {
+                                    log('✅ handleRoomEndedByUser method exists', 'success');
+                                } else {
+                                    log('❌ handleRoomEndedByUser method missing', 'error');
+                                }
+                                
+                            } catch (instanceError) {
+                                log(`❌ Failed to create instance: ${instanceError}`, 'error');
+                            }
+                        } else {
+                            log('❌ ChatModule not available after evaluation', 'error');
+                        }
+                        
+                    } catch (evalError) {
+                        log(`❌ SYNTAX ERROR in file: ${evalError.message}`, 'error');
+                        log(`❌ Error details: ${evalError.stack}`, 'error');
+                    }
+                    
+                } else {
+                    log(`❌ Failed to access file: ${response.status} ${response.statusText}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Network error: ${error}`, 'error');
+            }
+        }
+        
+        // Test dynamic loading
+        function testDynamicLoading() {
+            log('🔍 Testing dynamic script loading...', 'info');
+            
+            // Remove existing ChatModule
+            if (window.ChatModule) {
+                delete window.ChatModule;
+                log('🧹 Cleared existing ChatModule', 'info');
+            }
+            
+            // Remove existing script if any
+            const existingScript = document.querySelector('script[src="/static/js/modules/chat.js"]');
+            if (existingScript) {
+                existingScript.remove();
+                log('🧹 Removed existing script tag', 'info');
+            }
+            
+            // Create new script element
+            const script = document.createElement('script');
+            script.src = '/static/js/modules/chat.js?' + Date.now(); // Cache busting
+            script.type = 'text/javascript';
+            
+            script.onload = function() {
+                log('✅ Script loaded successfully', 'success');
+                
+                setTimeout(() => {
+                    if (typeof window.ChatModule !== 'undefined') {
+                        log('✅ ChatModule found after dynamic loading!', 'success');
+                    } else {
+                        log('❌ ChatModule not found after dynamic loading', 'error');
+                    }
+                }, 100);
+            };
+            
+            script.onerror = function(error) {
+                log(`❌ Script loading failed: ${error}`, 'error');
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        // Test 3: Minimal isolated test
+        function testMinimalLoading() {
+            log('🔍 Testing minimal isolated loading...', 'info');
+            
+            // Create iframe to isolate execution context
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = 'data:text/html,<html><head><script src="/static/js/modules/chat.js"></script><script>window.parent.postMessage({type: "test", ChatModule: typeof ChatModule}, "*");</script></head></html>';
+            
+            iframe.onload = function() {
+                log('✅ Iframe loaded', 'info');
+            };
+            
+            window.addEventListener('message', function(event) {
+                if (event.data.type === 'test') {
+                    log(`🔍 Iframe result: ChatModule = ${event.data.ChatModule}`, 'info');
+                    if (event.data.ChatModule !== 'undefined') {
+                        log('✅ ChatModule works in isolated context!', 'success');
+                    } else {
+                        log('❌ ChatModule fails in isolated context', 'error');
+                    }
+                    document.body.removeChild(iframe);
+                }
+            });
+            
+            document.body.appendChild(iframe);
+        }
+    </script>
+    
+    <!-- Load chat.js statically -->
+    <script src="/static/js/modules/chat.js"></script>
+    
+    <script>
+        log('📋 chat.js script tag loaded', 'info');
+        
+        // Add immediate check
+        setTimeout(() => {
+            log('🔍 Checking ChatModule after 100ms...', 'info');
+            if (typeof window.ChatModule !== 'undefined') {
+                log('✅ ChatModule found after timeout!', 'success');
+            } else {
+                log('❌ ChatModule still not found after timeout', 'error');
+                
+                // Check for JavaScript errors
+                log('🔍 Checking for JavaScript errors...', 'info');
+                if (window.onerror) {
+                    log('⚠️ Global error handler exists', 'info');
+                }
+                
+                // Check if script actually executed
+                log('🔍 Checking if script executed...', 'info');
+                const scripts = document.querySelectorAll('script[src*="chat.js"]');
+                log(`📋 Found ${scripts.length} chat.js script tags`, 'info');
+                
+                scripts.forEach((script, index) => {
+                    log(`📋 Script ${index + 1}: ${script.src}`, 'info');
+                    log(`📋 Script loaded: ${script.complete}`, 'info');
+                });
+            }
+        }, 100);
+        
+        // Add error event listener
+        window.addEventListener('error', (event) => {
+            log(`❌ JavaScript Error: ${event.message}`, 'error');
+            log(`❌ File: ${event.filename}`, 'error');
+            log(`❌ Line: ${event.lineno}`, 'error');
+        });
+        
+        // Add unhandled rejection listener
+        window.addEventListener('unhandledrejection', (event) => {
+            log(`❌ Unhandled Promise Rejection: ${event.reason}`, 'error');
+        });
+    </script>
+</body>
+</html>

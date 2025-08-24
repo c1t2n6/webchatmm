@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+from fastapi import Request
 from contextlib import asynccontextmanager
 import structlog
-import asyncio
 
 from .config import settings
 from .database import create_tables
@@ -11,7 +12,6 @@ from .api import auth, user, chat, admin
 from .routes import router as main_router
 from .websocket_routes import router as websocket_router
 from .websocket_manager import manager
-from .utils.room_lifecycle_manager import room_lifecycle_manager
 
 # Setup logging
 def setup_logging():
@@ -42,13 +42,7 @@ async def lifespan(app: FastAPI):
     create_tables()
     logger.info("Database tables created")
     
-    # Start WebSocket cleanup task
-    manager.start_cleanup_task()
-    logger.info("WebSocket cleanup task started")
-    
-    # Start room lifecycle manager
-    room_lifecycle_manager.start()
-    logger.info("Room lifecycle manager started")
+    # Note: WebSocket managers will be started when needed, not at startup
     
     logger.info("Mapmo.vn application started successfully")
     
@@ -57,13 +51,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down Mapmo.vn application...")
     
-    # Stop room lifecycle manager
-    room_lifecycle_manager.stop()
-    logger.info("Room lifecycle manager stopped")
-    
-    # Stop WebSocket cleanup task
-    manager.stop_cleanup_task()
-    logger.info("WebSocket cleanup task stopped")
+    # Note: WebSocket managers are not running at startup
     
     logger.info("Mapmo.vn application shutdown complete")
 
@@ -91,6 +79,12 @@ def create_app() -> FastAPI:
     
     # Mount static files
     app.mount("/static", StaticFiles(directory="static"), name="static")
+    
+    # Debug routes
+    @app.get("/debug_chat_final.html", response_class=HTMLResponse)
+    async def debug_chat_final():
+        with open("templates/debug_chat_final.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
     
     # Include routers
     app.include_router(auth.router, prefix="/auth", tags=["Authentication"])

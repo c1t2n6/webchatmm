@@ -174,6 +174,8 @@ class WebSocketHandler:
                 return await self._handle_chat_message(message_data)
             elif message_type == "typing":
                 return await self._handle_typing_indicator(message_data)
+            elif message_type == "stop_typing":
+                return await self._handle_stop_typing_indicator(message_data)
             elif message_type == "like_response":
                 return await self._handle_like_response(message_data)
             elif message_type == "heartbeat":
@@ -252,6 +254,26 @@ class WebSocketHandler:
             logger.error(f"Error handling typing indicator: {e}")
             return False
 
+    async def _handle_stop_typing_indicator(self, message_data: dict) -> bool:
+        """Handle stop typing indicator"""
+        try:
+            stop_typing_message = json.dumps({
+                "type": "stop_typing",
+                "user_id": self.user_id,
+                "username": self.username,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+            
+            # Broadcast stop typing indicator to other users in room
+            await manager.broadcast_to_room(stop_typing_message, self.room_id, exclude_user=self.user_id)
+            logger.info(f"Stop typing indicator broadcasted for user {self.user_id}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error handling stop typing indicator: {e}")
+            return False
+
     async def _handle_like_response(self, message_data: dict) -> bool:
         """Handle like response"""
         try:
@@ -321,14 +343,20 @@ class WebSocketHandler:
         """Cleanup resources when connection ends"""
         try:
             if self.user_id and self.room_id:
-                await manager.remove_from_room(self.room_id, self.user_id)
-                await manager.cleanup_user_from_database(self.user_id, self.room_id)
-                logger.info(f"Cleaned up user {self.user_id} from room {self.room_id}")
+                try:
+                    await manager.remove_from_room(self.room_id, self.user_id)
+                    await manager.cleanup_user_from_database(self.user_id, self.room_id)
+                    logger.info(f"Cleaned up user {self.user_id} from room {self.room_id}")
+                except Exception as e:
+                    logger.warning(f"Error during manager cleanup: {e}")
             
             # Close database session if exists
             if self.db:
-                self.db.close()
-                logger.info(f"Database session closed for user {self.user_id}")
+                try:
+                    self.db.close()
+                    logger.info(f"Database session closed for user {self.user_id}")
+                except Exception as e:
+                    logger.warning(f"Error closing database session: {e}")
                 
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
@@ -361,29 +389,39 @@ async def handle_chat_websocket(websocket: WebSocket, room_id: int):
         
         logger.info(f"User {handler.user_id} successfully connected to room {room_id}")
         
-        # Handle messages
-        while True:
-            try:
-                data = await websocket.receive_text()
-                logger.debug(f"Received raw data: {data}")
-                
-                message_data = json.loads(data)
-                logger.debug(f"Parsed message data: {message_data}")
-                
-                # Validate message format
-                if not isinstance(message_data, dict):
-                    logger.error(f"Invalid message format: {message_data}")
+        # Handle messages with proper error handling
+        try:
+            while True:
+                try:
+                    data = await websocket.receive_text()
+                    logger.debug(f"Received raw data: {data}")
+                    
+                    message_data = json.loads(data)
+                    logger.debug(f"Parsed message data: {message_data}")
+                    
+                    # Validate message format
+                    if not isinstance(message_data, dict):
+                        logger.error(f"Invalid message format: {message_data}")
+                        continue
+                    
+                    # Handle message
+                    await handler.handle_message(message_data)
+                    
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON decode error: {e}, data: {data}")
                     continue
-                
-                # Handle message
-                await handler.handle_message(message_data)
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON decode error: {e}, data: {data}")
-                continue
-            except Exception as e:
-                logger.error(f"Error processing message: {e}")
-                continue
+                except WebSocketDisconnect:
+                    logger.info(f"WebSocket disconnected for room {room_id}")
+                    break
+                except Exception as e:
+                    logger.error(f"Error processing message: {e}")
+                    # Don't continue on critical errors
+                    break
+                    
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket disconnected for room {room_id}")
+        except Exception as e:
+            logger.error(f"Error in message loop: {e}")
                 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for room {room_id}")
@@ -418,21 +456,30 @@ async def handle_status_websocket(websocket: WebSocket):
         
         await websocket.send_text(json.dumps(status_message))
         
-        # Keep connection alive with heartbeat
-        while True:
-            try:
-                data = await websocket.receive_text()
-                message_data = json.loads(data)
-                
-                if message_data.get("type") == "heartbeat":
-                    await handler._handle_heartbeat()
+        # Keep connection alive with heartbeat - with proper error handling
+        try:
+            while True:
+                try:
+                    data = await websocket.receive_text()
+                    message_data = json.loads(data)
                     
-            except json.JSONDecodeError:
-                # Send heartbeat response anyway
-                await handler._handle_heartbeat()
-            except Exception as e:
-                logger.error(f"Error in status WebSocket: {e}")
-                break
+                    if message_data.get("type") == "heartbeat":
+                        await handler._handle_heartbeat()
+                        
+                except json.JSONDecodeError:
+                    # Send heartbeat response anyway
+                    await handler._handle_heartbeat()
+                except WebSocketDisconnect:
+                    logger.info("Status WebSocket disconnected")
+                    break
+                except Exception as e:
+                    logger.error(f"Error in status WebSocket: {e}")
+                    break
+                    
+        except WebSocketDisconnect:
+            logger.info("Status WebSocket disconnected")
+        except Exception as e:
+            logger.error(f"Error in status message loop: {e}")
                 
     except WebSocketDisconnect:
         logger.info("Status WebSocket disconnected")

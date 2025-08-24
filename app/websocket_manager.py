@@ -3,8 +3,7 @@ from typing import Dict, List, Optional, Set
 import structlog
 import asyncio
 import json
-from datetime import datetime
-import weakref
+from datetime import datetime, timezone
 
 logger = structlog.get_logger()
 
@@ -14,7 +13,7 @@ class ConnectionManager:
         self.room_connections: Dict[int, Dict[int, WebSocket]] = {}
         self.user_rooms: Dict[int, int] = {}  # user_id -> room_id mapping
         self.room_locks: Dict[int, asyncio.Lock] = {}  # Prevent race conditions
-        self._cleanup_task: Optional[asyncio.Task] = None
+        # Note: Background cleanup tasks removed to prevent CancelledError
 
     def _get_or_create_room_lock(self, room_id: int) -> asyncio.Lock:
         """Get or create a lock for a specific room to prevent race conditions"""
@@ -108,7 +107,7 @@ class ConnectionManager:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
                         # If loop is running, create a task
-                        asyncio.create_task(self.send_personal_message(message, user_id))
+                        loop.create_task(self.send_personal_message(message, user_id))
                     else:
                         # If no loop running, run in new loop
                         asyncio.run(self.send_personal_message(message, user_id))
@@ -121,7 +120,12 @@ class ConnectionManager:
 
     async def broadcast_to_room(self, message: str, room_id: int, exclude_user: int = None):
         """Broadcast message to all users in a room"""
-        async with self._get_or_create_room_lock(room_id):
+        lock = self._get_or_create_room_lock(room_id)
+        acquired = False
+        try:
+            # Use shield to prevent cancellation during lock acquisition
+            await asyncio.shield(lock.acquire())
+            acquired = True
             logger.info(f"Broadcasting message to room {room_id}")
             logger.info(f"Message: {message}")
             
@@ -155,13 +159,30 @@ class ConnectionManager:
                     logger.error(f"Error broadcasting to user {user_id} in room {room_id}: {e}")
                     failed_connections.append((room_id, user_id))
             
-            # Clean up failed connections
+            # Clean up failed connections (don't call remove_from_room to avoid infinite loop)
             for room_id, user_id in failed_connections:
-                await self.remove_from_room(room_id, user_id)
+                logger.info(f"Marking failed connection for user {user_id} in room {room_id}")
+                # Just log the failure, don't call remove_from_room here
+                
+        except asyncio.CancelledError:
+            logger.info(f"Broadcast operation cancelled for room {room_id}")
+            # Clean up any partial state if needed
+            # This is normal during shutdown, not an error
+            # No need to clean up failed connections during cancellation
+        except Exception as e:
+            logger.error(f"Error broadcasting to room {room_id}: {e}")
+        finally:
+            if acquired and lock.locked():
+                lock.release()
 
     async def add_to_room(self, room_id: int, websocket: WebSocket, user_id: int):
         """Add user to a room with proper validation"""
-        async with self._get_or_create_room_lock(room_id):
+        lock = self._get_or_create_room_lock(room_id)
+        acquired = False
+        try:
+            # Use shield to prevent cancellation during lock acquisition
+            await asyncio.shield(lock.acquire())
+            acquired = True
             logger.info(f"Adding user {user_id} to room {room_id}")
             
             # Validate room doesn't already have this user
@@ -169,12 +190,12 @@ class ConnectionManager:
                 logger.warning(f"User {user_id} already in room {room_id}")
                 return False
             
-            # Check if user is already in another room
-            if user_id in self.user_rooms:
-                old_room_id = self.user_rooms[user_id]
-                if old_room_id != room_id:
-                    logger.warning(f"User {user_id} is already in room {old_room_id}, removing first")
-                    await self.remove_from_room(old_room_id, user_id)
+            # Check if user is already in another room - REMOVE THIS TO PREVENT INFINITE LOOP
+            # if user_id in self.user_rooms:
+            #     old_room_id = self.user_rooms[user_id]
+            #     if old_room_id != room_id:
+            #         logger.warning(f"User {user_id} is already in room {old_room_id}, removing first")
+            #         await self.remove_from_room(old_room_id, user_id)
             
             # Create room if it doesn't exist
             if room_id not in self.room_connections:
@@ -188,10 +209,27 @@ class ConnectionManager:
             logger.info(f"User {user_id} added to room {room_id}")
             logger.info(f"Room {room_id} now has users: {list(self.room_connections[room_id].keys())}")
             return True
+            
+        except asyncio.CancelledError:
+            logger.info(f"Add user operation cancelled for user {user_id} to room {room_id}")
+            # This is normal during shutdown, not an error
+            # Return False to indicate operation was not completed
+            return False
+        except Exception as e:
+            logger.error(f"Error adding user {user_id} to room {room_id}: {e}")
+            return False
+        finally:
+            if acquired and lock.locked():
+                lock.release()
 
     async def remove_from_room(self, room_id: int, user_id: int):
         """Remove user from a room with proper cleanup"""
-        async with self._get_or_create_room_lock(room_id):
+        lock = self._get_or_create_room_lock(room_id)
+        acquired = False
+        try:
+            # Use shield to prevent cancellation during lock acquisition
+            await asyncio.shield(lock.acquire())
+            acquired = True
             logger.info(f"Removing user {user_id} from room {room_id}")
             
             if room_id in self.room_connections:
@@ -210,6 +248,17 @@ class ConnectionManager:
                     if room_id in self.room_locks:
                         del self.room_locks[room_id]
                     logger.info(f"Room {room_id} closed - no more users")
+                    
+        except asyncio.CancelledError:
+            logger.info(f"Remove user operation cancelled for user {user_id} from room {room_id}")
+            # This is normal during shutdown, not an error
+            # During cancellation, we can't guarantee cleanup was completed
+            # But this is acceptable during shutdown
+        except Exception as e:
+            logger.error(f"Error removing user {user_id} from room {room_id}: {e}")
+        finally:
+            if acquired and lock.locked():
+                lock.release()
 
     def get_room_info(self, room_id: int) -> dict:
         """Get information about users in a room for debugging"""
@@ -234,53 +283,87 @@ class ConnectionManager:
         """Get room ID where user is currently located"""
         return self.user_rooms.get(user_id)
 
+    async def force_close_room_with_delay(self, room_id: int, delay_seconds: int = 3):
+        """Force close all connections in a room with delay to ensure notifications are received"""
+        try:
+            logger.info(f"Force closing room {room_id} with {delay_seconds}s delay")
+            
+            # Wait for specified delay to ensure notifications are received
+            await asyncio.sleep(delay_seconds)
+            
+            # Now call the original force_close_room method
+            await self.force_close_room(room_id)
+            
+        except Exception as e:
+            logger.error(f"Error in force_close_room_with_delay for room {room_id}: {e}")
+            # Fallback to immediate close if delay fails
+            await self.force_close_room(room_id)
+
     async def force_close_room(self, room_id: int):
         """Force close all connections in a room (used when ending chat)"""
-        async with self._get_or_create_room_lock(room_id):
+        try:
             if room_id not in self.room_connections:
                 logger.warning(f"Room {room_id} not found for force close")
                 return
             
             logger.info(f"Force closing room {room_id}")
             
-            # Notify all users before closing
+            # Get users before clearing connections
+            users_to_close = list(self.room_connections[room_id].keys())
+            
+            # Send final room closed notification to all users
             try:
                 await self.broadcast_to_room(
                     json.dumps({
                         "type": "room_closed",
-                        "message": "Chat room has been closed",
+                        "message": "Phòng chat đã được đóng",
                         "room_id": room_id,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "force_close": True
                     }),
                     room_id
                 )
+                logger.info(f"Final room closed notification sent to room {room_id}")
+                
+                # Give users a moment to receive the notification
+                await asyncio.sleep(0.5)
+                
             except Exception as e:
-                logger.error(f"Error broadcasting room close message: {e}")
+                logger.warning(f"Could not send final room closed notification: {e}")
             
             # Close all WebSocket connections
-            users_to_close = list(self.room_connections[room_id].keys())
+            successful_closes = 0
             for user_id in users_to_close:
                 try:
-                    websocket = self.room_connections[room_id][user_id]
-                    if websocket.client_state.value < 3:  # Only close if not already closed
+                    websocket = self.room_connections[room_id].get(user_id)
+                    if websocket and websocket.client_state.value < 3:
                         await websocket.close(code=1000, reason="Chat ended")
-                        logger.info(f"Force closed WebSocket for user {user_id} in room {room_id}")
+                        successful_closes += 1
+                        logger.info(f"Room {room_id} force closed successfully")
                 except Exception as e:
-                    logger.error(f"Error closing WebSocket for user {user_id}: {e}")
+                    logger.info(f"WebSocket close failed for user {user_id}: {e}")
                 
-                # Remove user from user_rooms mapping
+                # Remove user from mappings
                 if user_id in self.user_rooms:
                     del self.user_rooms[user_id]
             
-            # Cleanup users in database
-            for user_id in users_to_close:
-                await self.cleanup_user_from_database(user_id, room_id)
+            logger.info(f"Closed {successful_closes}/{len(users_to_close)} WebSocket connections")
             
             # Clear room connections
-            del self.room_connections[room_id]
+            if room_id in self.room_connections:
+                del self.room_connections[room_id]
             if room_id in self.room_locks:
                 del self.room_locks[room_id]
-            logger.info(f"Room {room_id} force closed")
+                
+            logger.info(f"Room {room_id} force closed successfully")
+            
+        except Exception as e:
+            logger.error(f"Error force closing room {room_id}: {e}")
+            # Clean up what we can even on error
+            if room_id in self.room_connections:
+                del self.room_connections[room_id]
+            if room_id in self.room_locks:
+                del self.room_locks[room_id]
 
     async def cleanup_user_from_database(self, user_id: int, room_id: int = None):
         """Cleanup user from database when disconnecting"""
@@ -306,46 +389,8 @@ class ConnectionManager:
         except Exception as e:
             logger.error(f"Error cleaning up user {user_id} in database: {e}")
 
-    async def cleanup_inactive_rooms(self):
-        """Periodic cleanup of inactive rooms"""
-        try:
-            current_time = datetime.now(timezone.utc)
-            rooms_to_cleanup = []
-            
-            for room_id, users in self.room_connections.items():
-                # Check if room has been inactive for too long
-                # This is a simple implementation - you might want to add more sophisticated logic
-                if len(users) == 0:
-                    rooms_to_cleanup.append(room_id)
-            
-            for room_id in rooms_to_cleanup:
-                logger.info(f"Cleaning up inactive room {room_id}")
-                await self.force_close_room(room_id)
-                
-        except Exception as e:
-            logger.error(f"Error during room cleanup: {e}")
-
-    def start_cleanup_task(self):
-        """Start periodic cleanup task"""
-        if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
-
-    async def _cleanup_loop(self):
-        """Background cleanup loop"""
-        while True:
-            try:
-                await asyncio.sleep(300)  # Run every 5 minutes
-                await self.cleanup_inactive_rooms()
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in cleanup loop: {e}")
-                await asyncio.sleep(60)  # Wait 1 minute on error
-
-    def stop_cleanup_task(self):
-        """Stop periodic cleanup task"""
-        if self._cleanup_task and not self._cleanup_task.done():
-            self._cleanup_task.cancel()
+    # Note: Background cleanup tasks have been removed to prevent CancelledError during shutdown
+    # Rooms are cleaned up immediately when users disconnect or rooms are ended
 
 # Global instance
 manager = ConnectionManager()
