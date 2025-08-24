@@ -269,6 +269,8 @@ class ChatModule {
 
         chatWs.onopen = () => {
             console.log('🔍 Chat - Chat WebSocket connected successfully to room:', roomId);
+            // ✅ Setup typing listeners sau khi WebSocket kết nối
+            this.setupTypingListeners();
         };
 
         chatWs.onmessage = (event) => {
@@ -293,12 +295,15 @@ class ChatModule {
         
         switch (data.type) {
             case 'message':
-                this.addMessageToChat(data.message);
+                console.log('🔍 Chat - Message received:', data);
+                this.addMessageToChat(data);  // ✅ Sửa: truyền data thay vì data.message
                 break;
             case 'typing':
+                console.log('🔍 Chat - Typing indicator received:', data);
                 this.showTypingIndicator(data.user_id);
                 break;
             case 'stop_typing':
+                console.log('🔍 Chat - Stop typing indicator received:', data);
                 this.hideTypingIndicator(data.user_id);
                 break;
             case 'room_closed':
@@ -321,6 +326,9 @@ class ChatModule {
         if (!message || !this.chatWebSocket) return;
 
         try {
+            // ✅ Gửi stop typing indicator trước khi gửi tin nhắn
+            this.sendStopTypingIndicator();
+
             this.chatWebSocket.send(JSON.stringify({
                 type: 'message',
                 content: message
@@ -334,7 +342,6 @@ class ChatModule {
             });
 
             input.value = '';
-            this.sendTypingIndicator();
         } catch (error) {
             console.error('Send message error:', error);
             this.app.showError('Không thể gửi tin nhắn');
@@ -347,20 +354,62 @@ class ChatModule {
         }
 
         if (this.chatWebSocket) {
+            // ✅ Gửi typing indicator với is_typing = true
             this.chatWebSocket.send(JSON.stringify({
-                type: 'typing'
+                type: 'typing',
+                is_typing: true
                 // room_id is handled by backend WebSocket authentication
             }));
         }
 
         this.typingTimer = setTimeout(() => {
             if (this.chatWebSocket) {
-                this.chatWebSocket.send(JSON.stringify({
-                    type: 'stop_typing'
-                    // room_id is handled by backend WebSocket authentication
-                }));
+                // ✅ Tự động gửi stop typing sau 1 giây
+                this.sendStopTypingIndicator();
             }
         }, 1000);
+    }
+
+    sendStopTypingIndicator() {
+        if (this.typingTimer) {
+            clearTimeout(this.typingTimer);
+            this.typingTimer = null;
+        }
+
+        if (this.chatWebSocket) {
+            // ✅ Gửi stop typing indicator với is_typing = false
+            this.chatWebSocket.send(JSON.stringify({
+                type: 'typing',
+                is_typing: false
+                // room_id is handled by backend WebSocket authentication
+            }));
+        }
+    }
+
+    setupTypingListeners() {
+        const input = document.getElementById('messageInput');
+        if (!input) return;
+
+        // ✅ Gửi typing indicator khi bắt đầu gõ
+        input.addEventListener('input', () => {
+            if (this.chatWebSocket) {
+                this.sendTypingIndicator();
+            }
+        });
+
+        // ✅ Gửi stop typing khi input mất focus
+        input.addEventListener('blur', () => {
+            if (this.chatWebSocket) {
+                this.sendStopTypingIndicator();
+            }
+        });
+
+        // ✅ Gửi stop typing khi nhấn Enter
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && this.chatWebSocket) {
+                this.sendStopTypingIndicator();
+            }
+        });
     }
 
     addMessageToChat(message) {

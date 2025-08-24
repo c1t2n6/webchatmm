@@ -220,9 +220,9 @@ class WebSocketHandler:
                 "timestamp": message.timestamp.isoformat()
             })
             
-            # Broadcast message to room
-            await manager.broadcast_to_room(message_json, self.room_id)
-            logger.info(f"Message broadcasted to room {self.room_id}")
+            # Broadcast message to room (exclude sender)
+            await manager.broadcast_to_room(message_json, self.room_id, exclude_user=self.user_id)
+            logger.info(f"Message broadcasted to room {self.room_id} (excluded user {self.user_id})")
             
             return True
             
@@ -236,8 +236,11 @@ class WebSocketHandler:
         try:
             is_typing = message_data.get("is_typing", False)
             
+            # ✅ Gửi message type phù hợp với frontend
+            message_type = "typing" if is_typing else "stop_typing"
+            
             typing_message = json.dumps({
-                "type": "typing",
+                "type": message_type,
                 "user_id": self.user_id,
                 "username": self.username,
                 "is_typing": is_typing,
@@ -246,7 +249,7 @@ class WebSocketHandler:
             
             # Broadcast typing indicator to other users in room
             await manager.broadcast_to_room(typing_message, self.room_id, exclude_user=self.user_id)
-            logger.info(f"Typing indicator broadcasted for user {self.user_id}")
+            logger.info(f"Typing indicator broadcasted for user {self.user_id} (is_typing: {is_typing})")
             
             return True
             
