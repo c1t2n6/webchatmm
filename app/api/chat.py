@@ -636,3 +636,45 @@ async def get_room_messages(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Lỗi lấy tin nhắn: {str(e)}"
         )
+
+@router.get("/check-room-status")
+async def check_room_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Check if current user is in an active room"""
+    
+    try:
+        # Kiểm tra xem user có đang trong room nào không
+        room = db.query(Room).filter(
+            ((Room.user1_id == current_user.id) | (Room.user2_id == current_user.id)) &
+            (Room.end_time.is_(None))
+        ).first()
+        
+        if room:
+            # Cập nhật user status nếu cần
+            if current_user.current_room_id != room.id or current_user.status != 'connected':
+                current_user.current_room_id = room.id
+                current_user.status = 'connected'
+                db.commit()
+                logger.info(f"User {current_user.id} room status restored: room {room.id}")
+            
+            return {
+                "room_id": room.id,
+                "status": "active",
+                "user1_id": room.user1_id,
+                "user2_id": room.user2_id,
+                "start_time": room.start_time.isoformat() if room.start_time else None
+            }
+        
+        return {
+            "room_id": None,
+            "status": "no_active_room"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking room status for user {current_user.id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Lỗi kiểm tra trạng thái phòng: {str(e)}"
+        )

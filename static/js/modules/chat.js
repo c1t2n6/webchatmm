@@ -8,6 +8,154 @@ class ChatModule {
         this.maxReconnectAttempts = 5;
         this.reconnectDelay = 1000;
         this.typingTimer = null;
+        
+        // Kiểm tra xem có pending chat connection không
+        this.checkPendingChatConnection();
+    }
+    
+    async init() {
+        console.log('🔍 Chat - ChatModule init called');
+        
+        // Đợi một chút để đảm bảo DOM đã sẵn sàng
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Kiểm tra và khôi phục trạng thái chat nếu cần
+        if (this.app.currentUser) {
+            await this.restoreChatState();
+        }
+        
+        // Thêm event listener để kiểm tra trạng thái khi page load
+        window.addEventListener('load', () => {
+            console.log('🔍 Chat - Page loaded, checking chat state...');
+            if (this.app.currentUser) {
+                this.restoreChatState();
+            }
+        });
+        
+        // Kiểm tra trạng thái ngay lập tức nếu DOM đã sẵn sàng
+        if (document.readyState === 'complete') {
+            console.log('🔍 Chat - DOM already complete, checking chat state immediately...');
+            if (this.app.currentUser) {
+                this.restoreChatState();
+            }
+        }
+        
+        // Thêm logic để tự động khôi phục chat state sau khi user được load
+        // Đợi một chút để đảm bảo user data đã được load
+        setTimeout(async () => {
+            if (this.app.currentUser) {
+                console.log('🔍 Chat - Auto-restoring chat state after delay...');
+                await this.restoreChatState();
+            }
+        }, 1000);
+    }
+    
+    checkPendingChatConnection() {
+        if (this.app.pendingChatConnection) {
+            console.log('🔍 Chat - Found pending chat connection:', this.app.pendingChatConnection);
+            const { roomId, timestamp } = this.app.pendingChatConnection;
+            
+            // Kiểm tra xem pending connection có còn hợp lệ không (trong vòng 30 giây)
+            const now = Date.now();
+            if (now - timestamp < 30000) { // 30 giây
+                console.log('🔍 Chat - Pending connection still valid, connecting to room:', roomId);
+                
+                // Xóa pending connection
+                delete this.app.pendingChatConnection;
+                
+                // Kết nối vào room
+                if (this.app.currentUser && this.app.currentUser.status.toLowerCase() === 'connected') {
+                    this.app.currentRoom = { id: roomId };
+                    this.app.showChatRoom();
+                    this.connectChatWebSocket(roomId);
+                }
+            } else {
+                console.log('🔍 Chat - Pending connection expired, removing');
+                delete this.app.pendingChatConnection;
+            }
+        } else {
+            // Không có pending connection, kiểm tra xem có cần khôi phục chat state không
+            this.restoreChatState();
+        }
+    }
+    
+    async restoreChatState() {
+        console.log('🔍 Chat - restoreChatState called');
+        console.log('🔍 Chat - Current user:', this.app.currentUser);
+        console.log('🔍 Chat - User status:', this.app.currentUser?.status);
+        console.log('🔍 Chat - User current_room_id:', this.app.currentUser?.current_room_id);
+        
+        // Kiểm tra xem user có đang trong chat room không
+        if (this.app.currentUser && this.app.currentUser.status.toLowerCase() === 'connected' && this.app.currentUser.current_room_id) {
+            console.log('🔍 Chat - User is in chat room, restoring state...');
+            
+            // Kiểm tra xem có đang ở chat room UI không
+            const chatRoom = document.getElementById('chatRoom');
+            const waitingRoom = document.getElementById('waitingRoom');
+            const searching = document.getElementById('searching');
+            
+            // Nếu đang ở waiting room hoặc searching, chuyển về chat room
+            if ((waitingRoom && !waitingRoom.classList.contains('hidden')) || 
+                (searching && !searching.classList.contains('hidden'))) {
+                console.log('🔍 Chat - User is in waiting/searching, redirecting to chat room...');
+                this.app.currentRoom = { id: this.app.currentUser.current_room_id };
+                this.app.showChatRoom();
+            }
+            
+            // Kết nối WebSocket nếu chưa có
+            if (!this.chatWebSocket || this.chatWebSocket.readyState !== WebSocket.OPEN) {
+                console.log('🔍 Chat - Connecting to chat WebSocket...');
+                this.connectChatWebSocket(this.app.currentUser.current_room_id);
+            }
+            
+            return true;
+        }
+        
+        // Nếu user không có current_room_id hoặc status không phải connected, 
+        // kiểm tra xem họ có đang trong room nào không
+        if (this.app.currentUser) {
+            console.log('🔍 Chat - User status is not connected or no current_room_id, checking for active rooms...');
+            
+            try {
+                // Gọi API để kiểm tra xem user có đang trong room nào không
+                const response = await fetch('/chat/check-room-status', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                
+                console.log('🔍 Chat - Check room status API response status:', response.status);
+                
+                if (response.ok) {
+                    const roomData = await response.json();
+                    console.log('🔍 Chat - Check room status API response:', roomData);
+                    
+                    if (roomData.room_id && roomData.status === 'active') {
+                        console.log('🔍 Chat - Found active room for user:', roomData.room_id);
+                        
+                        // Cập nhật user status
+                        this.app.currentUser.current_room_id = roomData.room_id;
+                        this.app.currentUser.status = 'connected';
+                        this.app.currentRoom = { id: roomData.room_id };
+                        
+                        // Chuyển về chat room
+                        this.app.showChatRoom();
+                        
+                        // Kết nối WebSocket
+                        this.connectChatWebSocket(roomData.room_id);
+                        
+                        return true;
+                    }
+                } else {
+                    console.error('🔍 Chat - Check room status API failed:', response.status);
+                    const errorData = await response.json();
+                    console.error('🔍 Chat - Error details:', errorData);
+                }
+            } catch (error) {
+                console.error('🔍 Chat - Error checking room status:', error);
+            }
+        }
+        
+        console.log('🔍 Chat - No chat state to restore');
+        return false;
     }
 
     async refreshUserStatus() {
@@ -27,7 +175,21 @@ class ChatModule {
     async startSearch() {
         await this.refreshUserStatus();
         
-        if (this.app.currentUser && this.app.currentUser.status === 'Connected' && this.app.currentUser.current_room_id) {
+        // Kiểm tra pending chat connection trước
+        if (this.app.pendingChatConnection) {
+            console.log('🔍 Chat - Processing pending chat connection in startSearch');
+            this.checkPendingChatConnection();
+            return;
+        }
+        
+        // Kiểm tra xem user có đang trong chat room không
+        if (await this.restoreChatState()) {
+            console.log('🔍 Chat - Chat state restored, no need to search');
+            return;
+        }
+        
+        // Nếu user đã có room_id và status connected, chuyển về chat room
+        if (this.app.currentUser && this.app.currentUser.status.toLowerCase() === 'connected' && this.app.currentUser.current_room_id) {
             console.log('User already connected to room, redirecting to chat...');
             this.app.currentRoom = { id: this.app.currentUser.current_room_id };
             this.app.showChatRoom();
@@ -142,6 +304,10 @@ class ChatModule {
                 console.log('🔍 Chat - Handling room_ended_by_user');
                 this.handleRoomEndedByUser(data);
                 break;
+            case 'status_update':
+                console.log('🔍 Chat - Handling status_update');
+                this.handleStatusUpdate(data);
+                break;
             default:
                 console.log('🔍 Chat - Unknown message type:', data.type);
         }
@@ -190,6 +356,27 @@ class ChatModule {
         
         // ❌ KHÔNG đóng chat WebSocket ngay lập tức
         // Để notification được xử lý hoàn toàn và tránh race condition
+    }
+    
+    handleStatusUpdate(data) {
+        console.log('🔍 Chat - Status update received:', data);
+        
+        // Cập nhật user status từ server
+        if (this.app.currentUser && data.user_id === this.app.currentUser.id) {
+            console.log('🔍 Chat - Updating user status from server');
+            console.log('🔍 Chat - Old status:', this.app.currentUser.status, 'New status:', data.status);
+            console.log('🔍 Chat - Old room_id:', this.app.currentUser.current_room_id, 'New room_id:', data.current_room_id);
+            
+            // Cập nhật trạng thái
+            this.app.currentUser.status = data.status;
+            this.app.currentUser.current_room_id = data.current_room_id;
+            
+            // Nếu user được kết nối vào room, khôi phục chat state
+            if (data.status === 'connected' && data.current_room_id) {
+                console.log('🔍 Chat - User connected to room, restoring chat state...');
+                this.restoreChatState();
+            }
+        }
     }
     
     handleRoomClosed(data) {
@@ -555,7 +742,43 @@ class ChatModule {
     handleChatMessage(data) {
         console.log('Chat message received:', data);
     }
+
+    debug() {
+        console.log('🔍 Chat - Debug info:');
+        console.log('  - Current user:', this.app.currentUser);
+        console.log('  - Current room:', this.app.currentRoom);
+        console.log('  - Pending connection:', this.app.pendingChatConnection);
+        console.log('  - Status WebSocket:', this.websocket?.readyState);
+        console.log('  - Chat WebSocket:', this.chatWebSocket?.readyState);
+        console.log('  - DOM elements:');
+        console.log('    - Chat room:', document.getElementById('chatRoom')?.classList.contains('hidden'));
+        console.log('    - Waiting room:', document.getElementById('waitingRoom')?.classList.contains('hidden'));
+        console.log('    - Searching:', document.getElementById('searching')?.classList.contains('hidden'));
+    }
+    
+    testRestore() {
+        console.log('🔍 Chat - Testing restore chat state...');
+        this.debug();
+        this.restoreChatState();
+    }
 }
 
 // Make ChatModule globally accessible
 window.ChatModule = ChatModule;
+
+// Add debug methods to global scope for testing
+window.debugChat = () => {
+    if (window.mapmoApp && window.mapmoApp.chatModule) {
+        window.mapmoApp.chatModule.debug();
+    } else {
+        console.log('🔍 Chat - MapmoApp or ChatModule not available');
+    }
+};
+
+window.testRestore = () => {
+    if (window.mapmoApp && window.mapmoApp.chatModule) {
+        window.mapmoApp.chatModule.testRestore();
+    } else {
+        console.log('🔍 Chat - MapmoApp or ChatModule not available');
+    }
+};

@@ -20,6 +20,54 @@ async def debug_all_rooms():
         "active_connections": manager.active_connections
     }
 
+# Check if user is in active room
+@router.get("/user/active-room")
+async def get_user_active_room():
+    """Check if current user is in an active room"""
+    from .database import get_db
+    from .models import User, Room
+    from .utils.auth_utils import get_current_user
+    
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return {"error": "Unauthorized"}
+        
+        db = next(get_db())
+        try:
+            # Kiểm tra xem user có đang trong room nào không
+            user = db.query(User).filter(User.id == current_user.id).first()
+            if not user:
+                return {"error": "User not found"}
+            
+            # Nếu user có current_room_id, trả về room đó
+            if user.current_room_id:
+                room = db.query(Room).filter(Room.id == user.current_room_id).first()
+                if room and not room.end_time:
+                    return {"room_id": room.id, "status": "active"}
+            
+            # Nếu không có current_room_id, kiểm tra xem user có trong room nào không
+            room = db.query(Room).filter(
+                ((Room.user1_id == user.id) | (Room.user2_id == user.id)) &
+                (Room.end_time.is_(None))
+            ).first()
+            
+            if room:
+                # Cập nhật user status
+                user.current_room_id = room.id
+                user.status = "connected"
+                db.commit()
+                
+                return {"room_id": room.id, "status": "restored"}
+            
+            return {"room_id": None, "status": "no_active_room"}
+            
+        finally:
+            db.close()
+            
+    except Exception as e:
+        return {"error": str(e)}
+
 # Test endpoint to check if server reloaded
 @router.get("/test-reload")
 async def test_reload():

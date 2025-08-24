@@ -32,15 +32,31 @@ export class AuthModule {
                         console.log('🔍 Auth check - Profile completed, checking room status');
                         console.log('🔍 Auth check - Status comparison:', this.app.currentUser.status, '===', 'Connected', '=', this.app.currentUser.status === 'Connected');
                         console.log('🔍 Auth check - Room ID check:', this.app.currentUser.current_room_id, 'truthy =', !!this.app.currentUser.current_room_id);
+                        console.log('🔍 Auth check - Status toLowerCase:', this.app.currentUser.status.toLowerCase());
+                        console.log('🔍 Auth check - Status comparison (case-insensitive):', this.app.currentUser.status.toLowerCase(), '===', 'connected', '=', this.app.currentUser.status.toLowerCase() === 'connected');
                         
-                        if (this.app.currentUser.status === 'Connected' && this.app.currentUser.current_room_id) {
+                        if (this.app.currentUser.status.toLowerCase() === 'connected' && this.app.currentUser.current_room_id) {
                             console.log('🔍 Auth check - User connected to room, redirecting to chat');
                             this.app.currentRoom = { id: this.app.currentUser.current_room_id };
                             this.app.showChatRoom();
-                            this.app.connectChatWebSocket(this.app.currentUser.current_room_id);
+                            
+                            // Đảm bảo ChatModule đã được khởi tạo trước khi kết nối WebSocket
+                            if (this.app.chatModule && typeof this.app.chatModule.connectChatWebSocket === 'function') {
+                                console.log('🔍 Auth check - ChatModule ready, connecting to chat WebSocket');
+                                this.app.chatModule.connectChatWebSocket(this.app.currentUser.current_room_id);
+                            } else {
+                                console.log('🔍 Auth check - ChatModule not ready yet, will connect later');
+                                // Lưu thông tin room để kết nối sau khi ChatModule sẵn sàng
+                                this.app.pendingChatConnection = {
+                                    roomId: this.app.currentUser.current_room_id,
+                                    timestamp: Date.now()
+                                };
+                            }
                         } else {
                             console.log('🔍 Auth check - User not connected, showing waiting room');
                             console.log('🔍 Auth check - Reason: status !== Connected OR no room_id');
+                            console.log('🔍 Auth check - Status check failed:', this.app.currentUser.status.toLowerCase() !== 'connected');
+                            console.log('🔍 Auth check - Room ID check failed:', !this.app.currentUser.current_room_id);
                             this.app.showWaitingRoom();
                         }
                     }
@@ -92,11 +108,23 @@ export class AuthModule {
                     this.app.showProfileWizard();
                 } else {
                     console.log('🔍 Login - Profile completed, checking room status');
-                    if (this.app.currentUser.status === 'Connected' && this.app.currentUser.current_room_id) {
+                    if (this.app.currentUser.status.toLowerCase() === 'connected' && this.app.currentUser.current_room_id) {
                         console.log('🔍 Login - User connected to room, redirecting to chat');
                         this.app.currentRoom = { id: this.app.currentUser.current_room_id };
                         this.app.showChatRoom();
-                        this.app.connectChatWebSocket(this.app.currentUser.current_room_id);
+                        
+                        // Đảm bảo ChatModule đã được khởi tạo trước khi kết nối WebSocket
+                        if (this.app.chatModule && typeof this.app.chatModule.connectChatWebSocket === 'function') {
+                            console.log('🔍 Login - ChatModule ready, connecting to chat WebSocket');
+                            this.app.chatModule.connectChatWebSocket(this.app.currentUser.current_room_id);
+                        } else {
+                            console.log('🔍 Login - ChatModule not ready yet, will connect later');
+                            // Lưu thông tin room để kết nối sau khi ChatModule sẵn sàng
+                            this.app.pendingChatConnection = {
+                                roomId: this.app.currentUser.current_room_id,
+                                timestamp: Date.now()
+                            };
+                        }
                     } else {
                         console.log('🔍 Login - User not connected, showing waiting room');
                         this.app.showWaitingRoom();

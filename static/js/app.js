@@ -24,6 +24,8 @@ class MapmoApp {
         if (typeof window.ChatModule !== 'undefined') {
             console.log('✅ ChatModule found, initializing...');
             this.chatModule = new window.ChatModule(this);
+            // Khởi tạo ChatModule
+            this.chatModule.init();
         } else {
             console.error('❌ ChatModule not found! Waiting for it...');
             // Wait for ChatModule to be available
@@ -299,6 +301,8 @@ class MapmoApp {
                 console.log('✅ ChatModule found! Initializing...');
                 clearInterval(checkInterval);
                 this.chatModule = new window.ChatModule(this);
+                // Khởi tạo ChatModule
+                this.chatModule.init();
                 console.log('✅ ChatModule initialized successfully!');
             }
         }, 100);
@@ -324,5 +328,9 @@ class MapmoApp {
 console.log("=== DOM CONTENT LOADED ===");
 document.addEventListener('DOMContentLoaded', () => {
     console.log("✓ DOM ready, creating MapmoApp...");
-    new MapmoApp();
+    const app = new MapmoApp();
+    
+    // Expose app instance to global scope for debugging
+    window.mapmoApp = app;
+    console.log("✓ MapmoApp exposed to global scope as 'mapmoApp'");
 });
