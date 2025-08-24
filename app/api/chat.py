@@ -678,3 +678,63 @@ async def check_room_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Lỗi kiểm tra trạng thái phòng: {str(e)}"
         )
+
+@router.get("/{room_id}/history")
+async def get_chat_history(
+    room_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get chat history for a specific room"""
+    
+    try:
+        # Kiểm tra xem user có quyền truy cập room này không
+        room = db.query(Room).filter(
+            (Room.id == room_id) &
+            ((Room.user1_id == current_user.id) | (Room.user2_id == current_user.id)) &
+            (Room.end_time.is_(None))
+        ).first()
+        
+        if not room:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Không tìm thấy phòng chat hoặc bạn không có quyền truy cập"
+            )
+        
+        # Sử dụng model Message (bảng messages) thay vì ChatMessage (bảng chat_messages)
+        # Vì WebSocket handler đang lưu tin nhắn vào bảng messages
+        from ..models import Message
+        
+        # Load chat history từ bảng messages, sắp xếp theo thời gian
+        messages = db.query(Message).filter(
+            Message.room_id == room_id
+        ).order_by(Message.timestamp.asc()).all()
+        
+        # Convert messages to dict format
+        message_list = []
+        for msg in messages:
+            message_list.append({
+                "id": msg.id,
+                "content": msg.content,
+                "user_id": msg.user_id,
+                "timestamp": msg.timestamp.isoformat() if msg.timestamp else None,
+                "content_type": "text",  # Default to text since Message model doesn't have content_type
+                "status": "sent"  # Default to sent since Message model doesn't have status
+            })
+        
+        logger.info(f"Loaded {len(message_list)} messages for room {room_id}")
+        
+        return {
+            "room_id": room_id,
+            "messages": message_list,
+            "total": len(message_list)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting chat history for room {room_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Lỗi load lịch sử chat: {str(e)}"
+        )

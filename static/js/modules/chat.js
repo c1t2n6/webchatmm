@@ -102,6 +102,9 @@ class ChatModule {
                 this.app.showChatRoom();
             }
             
+            // Load chat history trước khi kết nối WebSocket
+            await this.loadChatHistory(this.app.currentUser.current_room_id);
+            
             // Kết nối WebSocket nếu chưa có
             if (!this.chatWebSocket || this.chatWebSocket.readyState !== WebSocket.OPEN) {
                 console.log('🔍 Chat - Connecting to chat WebSocket...');
@@ -139,6 +142,9 @@ class ChatModule {
                         // Chuyển về chat room
                         this.app.showChatRoom();
                         
+                        // Load chat history trước khi kết nối WebSocket
+                        await this.loadChatHistory(roomData.room_id);
+                        
                         // Kết nối WebSocket
                         this.connectChatWebSocket(roomData.room_id);
                         
@@ -156,6 +162,50 @@ class ChatModule {
         
         console.log('🔍 Chat - No chat state to restore');
         return false;
+    }
+    
+    async loadChatHistory(roomId) {
+        console.log('🔍 Chat - Loading chat history for room:', roomId);
+        
+        try {
+            const response = await fetch(`/chat/${roomId}/history`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('🔍 Chat - Chat history loaded:', data);
+                
+                // Clear existing messages
+                const chatMessages = document.getElementById('chatMessages');
+                if (chatMessages) {
+                    chatMessages.innerHTML = '';
+                }
+                
+                // Add messages to chat
+                if (data.messages && data.messages.length > 0) {
+                    console.log('🔍 Chat - Adding', data.messages.length, 'messages to chat');
+                    data.messages.forEach(message => {
+                        this.addMessageToChat(message);
+                    });
+                } else {
+                    console.log('🔍 Chat - No messages in history');
+                }
+                
+                // Scroll to bottom
+                if (chatMessages) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+                
+            } else {
+                console.error('🔍 Chat - Failed to load chat history:', response.status);
+                const errorData = await response.json();
+                console.error('🔍 Chat - Error details:', errorData);
+            }
+            
+        } catch (error) {
+            console.error('🔍 Chat - Error loading chat history:', error);
+        }
     }
 
     async refreshUserStatus() {
@@ -339,6 +389,10 @@ class ChatModule {
         }
         
         this.app.showChatRoom();
+        
+        // Load chat history trước khi kết nối WebSocket
+        await this.loadChatHistory(this.app.currentRoom.id);
+        
         this.connectChatWebSocket(this.app.currentRoom.id);
         
         setTimeout(() => {
@@ -454,8 +508,12 @@ class ChatModule {
         console.log('🔍 Chat - Connecting to chat WebSocket for room:', roomId);
         const chatWs = new WebSocket(`ws://${window.location.host}/ws/chat/${roomId}?token=${token}`);
 
-        chatWs.onopen = () => {
+        chatWs.onopen = async () => {
             console.log('🔍 Chat - Chat WebSocket connected successfully to room:', roomId);
+            
+            // Load chat history khi WebSocket kết nối
+            await this.loadChatHistory(roomId);
+            
             // ✅ Setup typing listeners sau khi WebSocket kết nối
             this.setupTypingListeners();
         };
@@ -500,6 +558,13 @@ class ChatModule {
             case 'room_ended_by_user':
                 console.log('🔍 Chat - Room ended by user notification received via chat WebSocket:', data);
                 this.handleRoomEndedByUser(data);
+                break;
+            case 'connection':
+                console.log('🔍 Chat - Connection message received:', data);
+                // Xử lý thông báo kết nối thành công
+                if (data.message === 'Connected to chat room') {
+                    console.log('🔍 Chat - Successfully connected to chat room:', data.room_id);
+                }
                 break;
             default:
                 console.log('🔍 Chat - Unhandled message type:', data.type, data);
