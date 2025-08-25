@@ -9,6 +9,9 @@ class ChatModule {
         this.reconnectDelay = 1000;
         this.typingTimer = null;
         
+        // ✅ THÊM: Flag để track room đã ended
+        this.roomEnded = false;
+        
         // Kiểm tra xem có pending chat connection không
         this.checkPendingChatConnection();
     }
@@ -85,9 +88,47 @@ class ChatModule {
         console.log('🔍 Chat - User status:', this.app.currentUser?.status);
         console.log('🔍 Chat - User current_room_id:', this.app.currentUser?.current_room_id);
         
+        // ✅ THÊM: Kiểm tra flag room đã ended
+        if (this.roomEnded) {
+            console.log('🔍 Chat - Room was ended, skipping restore to prevent re-entry');
+            return false;
+        }
+        
         // Kiểm tra xem user có đang trong chat room không
         if (this.app.currentUser && this.app.currentUser.status.toLowerCase() === 'connected' && this.app.currentUser.current_room_id) {
-            console.log('🔍 Chat - User is in chat room, restoring state...');
+            console.log('🔍 Chat - User is in chat room, checking if room is still active...');
+            
+            // ✅ THÊM: Kiểm tra room có còn active không từ backend
+            try {
+                const response = await fetch(`/chat/room/${this.app.currentUser.current_room_id}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                
+                if (response.ok) {
+                    const roomData = await response.json();
+                    console.log('🔍 Chat - Room status from backend:', roomData);
+                    
+                    // ✅ KIỂM TRA: Room có end_time không
+                    if (roomData.end_time) {
+                        console.log('🔍 Chat - Room has ended in backend, resetting user status...');
+                        
+                        // Room đã ended, reset user status và set flag
+                        this.app.currentUser.current_room_id = null;
+                        this.app.currentUser.status = 'idle';
+                        this.app.currentRoom = null;
+                        this.roomEnded = true;
+                        
+                        // Không restore, user sẽ ở waiting room
+                        console.log('🔍 Chat - User status reset due to ended room, staying in waiting room');
+                        return false;
+                    }
+                } else {
+                    console.warning('🔍 Chat - Could not check room status from backend, proceeding with caution');
+                }
+            } catch (error) {
+                console.error('🔍 Chat - Error checking room status from backend:', error);
+                // Nếu không thể kiểm tra backend, tiếp tục với logic cũ
+            }
             
             // Kiểm tra xem có đang ở chat room UI không
             const chatRoom = document.getElementById('chatRoom');
@@ -222,8 +263,19 @@ class ChatModule {
         }
     }
     
+    // ✅ THÊM: Method để reset flag room ended khi user bắt đầu search mới
+    resetRoomEndedFlag() {
+        if (this.roomEnded) {
+            console.log('🔍 Chat - Resetting room ended flag for new search');
+            this.roomEnded = false;
+        }
+    }
+
     async startSearch() {
         await this.refreshUserStatus();
+        
+        // ✅ THÊM: Reset flag room ended khi bắt đầu search mới
+        this.resetRoomEndedFlag();
         
         // Kiểm tra pending chat connection trước
         if (this.app.pendingChatConnection) {
@@ -388,6 +440,10 @@ class ChatModule {
             this.app.currentRoom = data.room;
         }
         
+        // ✅ THÊM: Reset flag room ended khi user được match vào room mới
+        this.roomEnded = false;
+        console.log('🔍 Chat - Room ended flag reset for new match');
+        
         this.app.showChatRoom();
         
         // Load chat history trước khi kết nối WebSocket
@@ -400,16 +456,48 @@ class ChatModule {
         }, 5 * 60 * 1000);
     }
 
+    // ✅ THÊM: Method helper để reset chat state một cách an toàn
+    resetChatState() {
+        console.log('🔍 Chat - Resetting chat state...');
+        
+        // Đóng WebSocket connections
+        if (this.chatWebSocket) {
+            console.log('🔍 Chat - Closing chat WebSocket');
+            this.chatWebSocket.close();
+            this.chatWebSocket = null;
+        }
+        
+        // Reset app state
+        this.app.currentRoom = null;
+        
+        if (this.app.currentUser) {
+            this.app.currentUser.current_room_id = null;
+            this.app.currentUser.status = 'idle';
+            console.log('🔍 Chat - User status reset to idle');
+        }
+        
+        // ✅ THÊM: Set flag room đã ended
+        this.roomEnded = true;
+        console.log('🔍 Chat - Room ended flag set to true');
+        
+        // Chuyển về waiting room
+        this.app.showWaitingRoom();
+        
+        console.log('🔍 Chat - Chat state reset completed');
+    }
+
     handleRoomEndedByUser(data) {
         console.log('🔍 Chat - Room ended by user notification received:', data);
         console.log('🔍 Chat - Current WebSocket state:', this.websocket?.readyState);
         console.log('🔍 Chat - Current chat WebSocket state:', this.chatWebSocket?.readyState);
         
-        // Show modal thông báo thay vì showError
+        // ✅ BƯỚC 1: Hiển thị modal thông báo
         this.showRoomEndedModal(data.message || 'Phòng chat đã được kết thúc');
         
-        // ❌ KHÔNG đóng chat WebSocket ngay lập tức
-        // Để notification được xử lý hoàn toàn và tránh race condition
+        // ✅ BƯỚC 2-4: Sử dụng method helper để reset state
+        this.resetChatState();
+        
+        console.log('🔍 Chat - Successfully handled room ended, user returned to waiting room');
     }
     
     handleStatusUpdate(data) {
@@ -438,8 +526,11 @@ class ChatModule {
         console.log('🔍 Chat - Current WebSocket state:', this.websocket?.readyState);
         console.log('🔍 Chat - Current chat WebSocket state:', this.chatWebSocket?.readyState);
         
-        // Show modal thông báo thay vì showError
-        this.showRoomEndedModal(data.message || 'Phòng chat đã đóng');
+        // ✅ SỬA: Xử lý trực tiếp thay vì gọi showRoomEndedModal
+        this.handleRoomEndedByUser({
+            message: data.message || 'Phòng chat đã đóng',
+            room_id: data.room_id
+        });
     }
     
     showRoomEndedModal(message) {
@@ -463,41 +554,32 @@ class ChatModule {
         // Thêm modal vào body
         document.body.insertAdjacentHTML('beforeend', modalHTML);
         
-        // Thêm event listener cho nút
+        // ✅ SỬA: Nút "Về Phòng Chờ" không reload page nữa
         const backToWaitingBtn = document.getElementById('backToWaitingBtn');
         if (backToWaitingBtn) {
             backToWaitingBtn.addEventListener('click', () => {
                 console.log('🔍 Chat - Back to waiting button clicked');
                 
-                // Đóng WebSocket connections trước khi reload
-                if (this.chatWebSocket) {
-                    console.log('🔍 Chat - Closing chat WebSocket before reload');
-                    this.chatWebSocket.close();
-                    this.chatWebSocket = null;
+                // ✅ Đóng modal
+                const modal = document.getElementById('roomEndedModal');
+                if (modal) {
+                    modal.remove();
                 }
                 
-                if (this.websocket) {
-                    console.log('🔍 Chat - Closing status WebSocket before reload');
-                    this.websocket.close();
-                    this.websocket = null;
-                }
-                
-                // Reload page để về phòng chờ
-                console.log('🔍 Chat - Reloading page to return to waiting room');
-                window.location.reload();
+                // ✅ Sử dụng method helper để reset state
+                this.resetChatState();
             });
         }
         
-        // Auto-close modal sau 10 giây nếu user không click
+        // ✅ SỬA: Auto-close modal sau 10 giây và tự động xử lý
         setTimeout(() => {
             const modal = document.getElementById('roomEndedModal');
             if (modal) {
                 console.log('🔍 Chat - Auto-closing room ended modal after 10 seconds');
                 modal.remove();
                 
-                // Tự động reload page
-                console.log('🔍 Chat - Auto-reloading page to return to waiting room');
-                window.location.reload();
+                // ✅ Sử dụng method helper để reset state
+                this.resetChatState();
             }
         }, 10000);
     }
@@ -746,9 +828,9 @@ class ChatModule {
             console.error('End chat error:', error);
         }
 
-        this.disconnectWebSocket();
-        this.app.currentRoom = null;
-        this.app.showEndChatModal();
+        // ✅ SỬA: Sử dụng logic mới thay vì showEndChatModal
+        console.log('🔍 Chat - User ended chat, resetting state...');
+        this.resetChatState();
     }
 
     async keepActive() {
@@ -815,6 +897,7 @@ class ChatModule {
         console.log('  - Pending connection:', this.app.pendingChatConnection);
         console.log('  - Status WebSocket:', this.websocket?.readyState);
         console.log('  - Chat WebSocket:', this.chatWebSocket?.readyState);
+        console.log('  - Room ended flag:', this.roomEnded);  // ✅ THÊM: Hiển thị flag
         console.log('  - DOM elements:');
         console.log('    - Chat room:', document.getElementById('chatRoom')?.classList.contains('hidden'));
         console.log('    - Waiting room:', document.getElementById('waitingRoom')?.classList.contains('hidden'));
@@ -825,6 +908,60 @@ class ChatModule {
         console.log('🔍 Chat - Testing restore chat state...');
         this.debug();
         this.restoreChatState();
+    }
+    
+    // ✅ THÊM: Method test cho logic mới
+    testRoomEndedLogic() {
+        console.log('🔍 Chat - Testing room ended logic...');
+        console.log('🔍 Chat - Current state before test:');
+        this.debug();
+        
+        // Simulate room ended notification
+        const testData = {
+            message: 'Test: Phòng chat đã được kết thúc',
+            room_id: this.app.currentRoom?.id || 999
+        };
+        
+        console.log('🔍 Chat - Simulating room ended notification:', testData);
+        this.handleRoomEndedByUser(testData);
+        
+        console.log('🔍 Chat - State after test:');
+        this.debug();
+        
+        // ✅ THÊM: Test restoreChatState với flag
+        console.log('🔍 Chat - Testing restoreChatState with room ended flag...');
+        this.restoreChatState();
+    }
+    
+    // ✅ THÊM: Method test cho logic kiểm tra room status từ backend
+    async testRoomStatusCheck() {
+        console.log('🔍 Chat - Testing room status check from backend...');
+        
+        if (!this.app.currentUser || !this.app.currentUser.current_room_id) {
+            console.log('🔍 Chat - No current room to test');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/chat/room/${this.app.currentUser.current_room_id}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            
+            if (response.ok) {
+                const roomData = await response.json();
+                console.log('🔍 Chat - Room status from backend:', roomData);
+                
+                if (roomData.end_time) {
+                    console.log('🔍 Chat - Room has ended in backend');
+                } else {
+                    console.log('🔍 Chat - Room is still active in backend');
+                }
+            } else {
+                console.log('🔍 Chat - Failed to get room status:', response.status);
+            }
+        } catch (error) {
+            console.error('🔍 Chat - Error testing room status check:', error);
+        }
     }
 }
 
@@ -843,6 +980,24 @@ window.debugChat = () => {
 window.testRestore = () => {
     if (window.mapmoApp && window.mapmoApp.chatModule) {
         window.mapmoApp.chatModule.testRestore();
+    } else {
+        console.log('🔍 Chat - MapmoApp or ChatModule not available');
+    }
+};
+
+// ✅ THÊM: Test method cho logic mới
+window.testRoomEndedLogic = () => {
+    if (window.mapmoApp && window.mapmoApp.chatModule) {
+        window.mapmoApp.chatModule.testRoomEndedLogic();
+    } else {
+        console.log('🔍 Chat - MapmoApp or ChatModule not available');
+    }
+};
+
+// ✅ THÊM: Test method cho logic kiểm tra room status từ backend
+window.testRoomStatusCheck = () => {
+    if (window.mapmoApp && window.mapmoApp.chatModule) {
+        window.mapmoApp.chatModule.testRoomStatusCheck();
     } else {
         console.log('🔍 Chat - MapmoApp or ChatModule not available');
     }
