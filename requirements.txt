@@ -1,5 +1,5 @@
-fastapi==0.95.2
-uvicorn[standard]==0.22.0
+fastapi==0.88.0
+uvicorn[standard]==0.20.0
 sqlalchemy==1.4.53
 python-multipart==0.0.6
 python-jose[cryptography]==3.3.0
