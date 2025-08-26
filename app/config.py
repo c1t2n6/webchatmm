@@ -1,8 +1,7 @@
-from pydantic_settings import BaseSettings
 from typing import Optional
 import os
 
-class Settings(BaseSettings):
+class Settings:
     # Database
     database_url: str = "sqlite:///./mapmo.db"
     
@@ -41,10 +40,6 @@ class Settings(BaseSettings):
     sendgrid_api_key: Optional[str] = None
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
 
 # Global settings instance
 settings = Settings()
