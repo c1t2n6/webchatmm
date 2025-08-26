@@ -77,7 +77,7 @@ class ChatRoomResponse(ChatRoomBase):
     created_at: datetime
     
     class Config:
-        from_attributes = True
+        orm_mode = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
@@ -119,7 +119,7 @@ class ChatMessageResponse(ChatMessageBase):
     avatar_url: str
     
     class Config:
-        from_attributes = True
+        orm_mode = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
@@ -141,7 +141,7 @@ class MessageReactionResponse(MessageReactionBase):
     nickname: str
     
     class Config:
-        from_attributes = True
+        orm_mode = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
@@ -169,7 +169,7 @@ class RoomParticipantResponse(RoomParticipantBase):
     online_status: bool
     
     class Config:
-        from_attributes = True
+        orm_mode = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
@@ -190,7 +190,7 @@ class ChatSessionResponse(ChatSessionBase):
     messages_received: int
     
     class Config:
-        from_attributes = True
+        orm_mode = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
@@ -212,7 +212,7 @@ class ChatEventResponse(ChatEventBase):
     timestamp: datetime
     
     class Config:
-        from_attributes = True
+        orm_mode = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }

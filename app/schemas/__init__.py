@@ -57,7 +57,7 @@ class UserResponse(UserBase):
         return value.isoformat() if value else None
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class UserSignupResponse(BaseModel):
     id: int
@@ -75,7 +75,7 @@ class UserSignupResponse(BaseModel):
         return value.isoformat() if value else None
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Auth schemas
 class UserLogin(BaseModel):
@@ -110,7 +110,7 @@ class MessageResponse(BaseModel):
         return value.isoformat() if value else None
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class RoomResponse(BaseModel):
     id: int
@@ -131,7 +131,7 @@ class RoomResponse(BaseModel):
         return value.isoformat() if value else None
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class ChatSearch(BaseModel):
     type: str = "chat"
@@ -168,7 +168,7 @@ class ReportResponse(BaseModel):
         return value.isoformat() if value else None
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Matching schemas
 class MatchingResponse(BaseModel):
