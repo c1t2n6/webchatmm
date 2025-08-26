@@ -35,11 +35,36 @@ class MapmoApp {
         this.likeModule = new LikeModule(this);
         this.uiModule = new UIModule(this);
         this.utilsModule = new UtilsModule(this);
+        
+        // ✅ THÊM: Khởi tạo TimerManager cho app
+        this.timerManager = null;
+        this.initTimerManager();
+        
         console.log('🔍 App - Modules initialized');
         
         console.log('🔍 App - Calling init()...');
         this.init();
         console.log('🔍 App - Constructor completed');
+    }
+    
+    // ✅ THÊM: Khởi tạo TimerManager
+    async initTimerManager() {
+        try {
+            // Import TimerManager module
+            const { TimerManager } = await import('./modules/timer_manager.js');
+            this.timerManager = new TimerManager();
+            console.log('🔍 App - TimerManager initialized successfully');
+        } catch (error) {
+            console.error('🔍 App - Failed to initialize TimerManager:', error);
+            // Fallback: tạo TimerManager đơn giản
+            this.timerManager = {
+                setTimer: (id, callback, delay) => setTimeout(callback, delay),
+                clearTimer: (id) => {},
+                clearAll: () => {},
+                setInterval: (id, callback, interval) => setInterval(callback, interval),
+                clearInterval: (id) => {}
+            };
+        }
     }
 
     init() {

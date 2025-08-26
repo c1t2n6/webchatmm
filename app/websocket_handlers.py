@@ -178,6 +178,8 @@ class WebSocketHandler:
                 return await self._handle_stop_typing_indicator(message_data)
             elif message_type == "like_response":
                 return await self._handle_like_response(message_data)
+            elif message_type == "like_prompt":
+                return await self._handle_like_prompt(message_data)
             elif message_type == "heartbeat":
                 return await self._handle_heartbeat()
             else:
@@ -324,6 +326,17 @@ class WebSocketHandler:
         except Exception as e:
             logger.error(f"Error handling like response: {e}")
             self.db.rollback()
+            return False
+
+    async def _handle_like_prompt(self, message_data: dict) -> bool:
+        """Handle like prompt message"""
+        try:
+            # Like prompt được gửi từ backend, chỉ cần log
+            logger.info(f"Like prompt received for room {self.room_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error handling like prompt: {e}")
             return False
 
     async def _handle_heartbeat(self) -> bool:

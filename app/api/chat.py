@@ -284,7 +284,58 @@ async def like_response(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Lỗi gửi phản hồi: {str(e)}"
+            detail=f"Lỗi gửi phản hồi like: {str(e)}"
+        )
+
+
+
+@router.post("/schedule-like-prompt/{room_id}")
+async def schedule_like_prompt(
+    room_id: int,
+    prompt_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Schedule like prompt timer for a room"""
+    
+    try:
+        # Validate room access
+        has_access, room, error_msg = RoomManager.validate_user_room_access(current_user, room_id, db)
+        if not has_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error_msg
+            )
+        
+        # Import like timer service
+        from app.services.like_timer_service import like_timer_service
+        
+        # Schedule like prompt
+        delay_minutes = prompt_data.get("delay_minutes", 5)
+        is_second_round = prompt_data.get("is_second_round", False)
+        
+        success = await like_timer_service.schedule_like_prompt(room_id, is_second_round)
+        
+        if success:
+            return {
+                "message": "Đã lên lịch hiển thị like modal",
+                "room_id": room_id,
+                "delay_minutes": delay_minutes,
+                "is_second_round": is_second_round
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Không thể lên lịch like prompt"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Lỗi lên lịch like prompt: {str(e)}"
         )
 
 @router.post("/keep/{room_id}")

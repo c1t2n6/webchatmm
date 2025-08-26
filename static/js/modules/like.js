@@ -3,6 +3,30 @@ export class LikeModule {
     constructor(app) {
         this.app = app;
         this.likeTimer = null;
+        
+        // ✅ THÊM: TimerManager để quản lý timer
+        this.timerManager = null;
+        this.initTimerManager();
+    }
+
+    // ✅ THÊM: Khởi tạo TimerManager
+    async initTimerManager() {
+        try {
+            // Import TimerManager module
+            const { TimerManager } = await import('./timer_manager.js');
+            this.timerManager = new TimerManager();
+            console.log('🔍 Like - TimerManager initialized successfully');
+        } catch (error) {
+            console.error('🔍 Like - Failed to initialize TimerManager:', error);
+            // Fallback: tạo TimerManager đơn giản
+            this.timerManager = {
+                setTimer: (id, callback, delay) => setTimeout(callback, delay),
+                clearTimer: (id) => {},
+                clearAll: () => {},
+                setInterval: (id, callback, interval) => setInterval(callback, interval),
+                clearInterval: (id) => {}
+            };
+        }
     }
 
     showLikeModal() {
@@ -20,20 +44,38 @@ export class LikeModule {
         
         if (!timerBar || !timeDisplay) return;
         
-        this.likeTimer = setInterval(() => {
-            timeLeft--;
-            const percentage = (timeLeft / 30) * 100;
-            timerBar.style.width = `${percentage}%`;
-            timeDisplay.textContent = timeLeft;
-            
-            if (timeLeft <= 0) {
-                this.handleLike(false);
-            }
-        }, 1000);
+        // ✅ SỬA: Sử dụng TimerManager để quản lý interval
+        if (this.timerManager) {
+            this.likeTimer = this.timerManager.setInterval('like_countdown_30s', () => {
+                timeLeft--;
+                const percentage = (timeLeft / 30) * 100;
+                timerBar.style.width = `${percentage}%`;
+                timeDisplay.textContent = timeLeft;
+                
+                if (timeLeft <= 0) {
+                    this.handleLike(false);
+                }
+            }, 1000);
+        } else {
+            // Fallback nếu TimerManager chưa sẵn sàng
+            this.likeTimer = setInterval(() => {
+                timeLeft--;
+                const percentage = (timeLeft / 30) * 100;
+                timerBar.style.width = `${percentage}%`;
+                timeDisplay.textContent = timeLeft;
+                
+                if (timeLeft <= 0) {
+                    this.handleLike(false);
+                }
+            }, 1000);
+        }
     }
 
     async handleLike(liked) {
-        if (this.likeTimer) {
+        // ✅ SỬA: Clear timer sử dụng TimerManager
+        if (this.timerManager) {
+            this.timerManager.clearInterval('like_countdown_30s');
+        } else if (this.likeTimer) {
             clearInterval(this.likeTimer);
         }
         
@@ -52,9 +94,16 @@ export class LikeModule {
                 if (result.both_liked) {
                     this.showImageReveal();
                 } else if (result.need_second_round) {
-                    setTimeout(() => {
-                        this.showLikeModal();
-                    }, 5 * 60 * 1000);
+                    // ✅ SỬA: Sử dụng TimerManager cho second round
+                    if (this.timerManager) {
+                        this.timerManager.setTimer('like_modal_second_round', () => {
+                            this.showLikeModal();
+                        }, 5 * 60 * 1000);
+                    } else {
+                        setTimeout(() => {
+                            this.showLikeModal();
+                        }, 5 * 60 * 1000);
+                    }
                 }
             }
         } catch (error) {

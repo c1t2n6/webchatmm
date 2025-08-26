@@ -12,8 +12,32 @@ class ChatModule {
         // ✅ THÊM: Flag để track room đã ended
         this.roomEnded = false;
         
+        // ✅ THÊM: TimerManager để quản lý tất cả timer
+        this.timerManager = null;
+        this.initTimerManager();
+        
         // Kiểm tra xem có pending chat connection không
         this.checkPendingChatConnection();
+    }
+    
+    // ✅ THÊM: Khởi tạo TimerManager
+    async initTimerManager() {
+        try {
+            // Import TimerManager module
+            const { TimerManager } = await import('./timer_manager.js');
+            this.timerManager = new TimerManager();
+            console.log('🔍 Chat - TimerManager initialized successfully');
+        } catch (error) {
+            console.error('🔍 Chat - Failed to initialize TimerManager:', error);
+            // Fallback: tạo TimerManager đơn giản
+            this.timerManager = {
+                setTimer: (id, callback, delay) => setTimeout(callback, delay),
+                clearTimer: (id) => {},
+                clearAll: () => {},
+                setInterval: (id, callback, interval) => setInterval(callback, interval),
+                clearInterval: (id) => {}
+            };
+        }
     }
     
     async init() {
@@ -451,14 +475,23 @@ class ChatModule {
         
         this.connectChatWebSocket(this.app.currentRoom.id);
         
-        setTimeout(() => {
-            this.app.showLikeModal();
-        }, 5 * 60 * 1000);
+        // ✅ SỬA: Sử dụng backend-driven timer thay vì frontend timer
+        // Backend sẽ gửi like_prompt message sau 5 phút
+        console.log('🔍 Chat - Backend will handle like modal timer');
+        
+        // Gửi request để backend lên lịch like prompt
+        this.scheduleBackendLikePrompt();
     }
 
     // ✅ THÊM: Method helper để reset chat state một cách an toàn
     resetChatState() {
         console.log('🔍 Chat - Resetting chat state...');
+        
+        // ✅ THÊM: Clear tất cả timer trước khi reset
+        if (this.timerManager) {
+            console.log('🔍 Chat - Clearing all timers...');
+            this.timerManager.clearAll();
+        }
         
         // Đóng WebSocket connections
         if (this.chatWebSocket) {
@@ -484,6 +517,48 @@ class ChatModule {
         this.app.showWaitingRoom();
         
         console.log('🔍 Chat - Chat state reset completed');
+    }
+    
+    // ✅ THÊM: Method để gửi request backend lên lịch like prompt
+    async scheduleBackendLikePrompt() {
+        try {
+            if (!this.app.currentRoom?.id) {
+                console.log('🔍 Chat - No current room, skipping backend like prompt scheduling');
+                return;
+            }
+            
+            const response = await fetch(`/chat/schedule-like-prompt/${this.app.currentRoom.id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}` 
+                },
+                body: JSON.stringify({
+                    delay_minutes: 5,
+                    is_second_round: false
+                })
+            });
+            
+            if (response.ok) {
+                console.log('🔍 Chat - Backend like prompt scheduled successfully');
+            } else {
+                console.warn('🔍 Chat - Failed to schedule backend like prompt, using fallback');
+                // Fallback: sử dụng frontend timer
+                if (this.timerManager) {
+                    this.timerManager.setTimer('like_modal_5min', () => {
+                        this.app.showLikeModal();
+                    }, 5 * 60 * 1000);
+                }
+            }
+        } catch (error) {
+            console.error('🔍 Chat - Error scheduling backend like prompt:', error);
+            // Fallback: sử dụng frontend timer
+            if (this.timerManager) {
+                this.timerManager.setTimer('like_modal_5min', () => {
+                    this.app.showLikeModal();
+                }, 5 * 60 * 1000);
+            }
+        }
     }
 
     handleRoomEndedByUser(data) {
