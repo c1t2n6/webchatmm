@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, validator, field_serializer
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional, List
 from datetime import date, datetime
 from enum import Enum
@@ -8,8 +8,6 @@ class Gender(str, Enum):
     NAM = "Nam"
     NU = "Nữ"
     KHAC = "Khác"
-
-
 
 # Base schemas
 class UserBase(BaseModel):
@@ -48,13 +46,17 @@ class UserResponse(UserBase):
     created_at: datetime
     current_room_id: Optional[int] = None
 
-    @field_serializer('dob')
-    def serialize_dob(self, value: date) -> str:
-        return value.isoformat() if value else None
+    @validator('dob', pre=True)
+    def serialize_dob(cls, value):
+        if isinstance(value, date):
+            return value.isoformat()
+        return value
     
-    @field_serializer('created_at')
-    def serialize_created_at(self, value: datetime) -> str:
-        return value.isoformat() if value else None
+    @validator('created_at', pre=True)
+    def serialize_created_at(cls, value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return value
 
     class Config:
         orm_mode = True
@@ -70,9 +72,11 @@ class UserSignupResponse(BaseModel):
     role: str
     created_at: datetime
 
-    @field_serializer('created_at')
-    def serialize_created_at(self, value: datetime) -> str:
-        return value.isoformat() if value else None
+    @validator('created_at', pre=True)
+    def serialize_created_at(cls, value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return value
 
     class Config:
         orm_mode = True
@@ -105,9 +109,11 @@ class MessageResponse(BaseModel):
     timestamp: datetime
     user_id: int
 
-    @field_serializer('timestamp')
-    def serialize_timestamp(self, value: datetime) -> str:
-        return value.isoformat() if value else None
+    @validator('timestamp', pre=True)
+    def serialize_timestamp(cls, value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return value
 
     class Config:
         orm_mode = True
@@ -122,13 +128,17 @@ class RoomResponse(BaseModel):
     keep_active: bool
     last_message_time: datetime
 
-    @field_serializer('start_time')
-    def serialize_start_time(self, value: datetime) -> str:
-        return value.isoformat() if value else None
+    @validator('start_time', pre=True)
+    def serialize_start_time(cls, value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return value
     
-    @field_serializer('last_message_time')
-    def serialize_last_message_time(self, value: datetime) -> str:
-        return value.isoformat() if value else None
+    @validator('last_message_time', pre=True)
+    def serialize_last_message_time(cls, value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return value
 
     class Config:
         orm_mode = True
@@ -163,9 +173,11 @@ class ReportResponse(BaseModel):
     reason: Optional[str]
     timestamp: datetime
 
-    @field_serializer('timestamp')
-    def serialize_timestamp(self, value: datetime) -> str:
-        return value.isoformat() if value else None
+    @validator('timestamp', pre=True)
+    def serialize_timestamp(cls, value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return value
 
     class Config:
         orm_mode = True
