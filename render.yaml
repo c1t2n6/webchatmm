@@ -3,7 +3,10 @@ services:
     name: webchat-backend
     env: python
     plan: starter
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      echo "Forcing Python 3.11..."
+      python --version
+      pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
