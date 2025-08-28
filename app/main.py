@@ -1,9 +1,13 @@
 from .app_factory import create_app
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .websocket_manager import manager
 from datetime import datetime
+import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Create the FastAPI application
 app = create_app()
@@ -75,6 +79,47 @@ async def test_connection():
             "status": "connected"
         }
     )
+
+@app.websocket("/ws/test")
+async def websocket_test(websocket: WebSocket):
+    """Test WebSocket endpoint for debugging"""
+    try:
+        await websocket.accept()
+        logger.info("Test WebSocket connected")
+        
+        # Send connection success
+        await websocket.send_json({
+            "type": "test_connected",
+            "message": "Test WebSocket connected successfully",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Keep connection alive and echo messages
+        while True:
+            try:
+                data = await websocket.receive_text()
+                message_data = json.loads(data)
+                
+                # Echo back the message
+                await websocket.send_json({
+                    "type": "echo",
+                    "original_message": message_data,
+                    "timestamp": datetime.now().isoformat()
+                })
+                
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                await websocket.send_json({
+                    "type": "error",
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat()
+                })
+                
+    except WebSocketDisconnect:
+        logger.info("Test WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"Error in test WebSocket: {e}")
 
 if __name__ == "__main__":
     import uvicorn
