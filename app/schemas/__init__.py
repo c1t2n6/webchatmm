@@ -60,6 +60,10 @@ class UserResponse(UserBase):
 
     class Config:
         orm_mode = True
+        json_encoders = {
+            date: lambda v: v.isoformat() if v else None,
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 class UserSignupResponse(BaseModel):
     id: int
@@ -80,6 +84,10 @@ class UserSignupResponse(BaseModel):
 
     class Config:
         orm_mode = True
+        json_encoders = {
+            date: lambda v: v.isoformat() if v else None,
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 # Auth schemas
 class UserLogin(BaseModel):
@@ -117,6 +125,10 @@ class MessageResponse(BaseModel):
 
     class Config:
         orm_mode = True
+        json_encoders = {
+            date: lambda v: v.isoformat() if v else None,
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 class RoomResponse(BaseModel):
     id: int
@@ -142,6 +154,10 @@ class RoomResponse(BaseModel):
 
     class Config:
         orm_mode = True
+        json_encoders = {
+            date: lambda v: v.isoformat() if v else None,
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 class ChatSearch(BaseModel):
     type: str = "chat"
@@ -181,6 +197,10 @@ class ReportResponse(BaseModel):
 
     class Config:
         orm_mode = True
+        json_encoders = {
+            date: lambda v: v.isoformat() if v else None,
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 # Matching schemas
 class MatchingResponse(BaseModel):
