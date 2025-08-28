@@ -147,6 +147,14 @@ class ConnectionManager:
                 logger.error(f"Error sending JSON message to user {user_id}: {e}")
                 self.disconnect(user_id)
 
+    async def send_to_user(self, user_id: int, message: str):
+        """Alias for send_personal_message for backward compatibility"""
+        await self.send_personal_message(message, user_id)
+
+    async def send_to_user_json(self, user_id: int, message: dict):
+        """Alias for send_personal_message_json for backward compatibility"""
+        await self.send_personal_message_json(message, user_id)
+
     async def broadcast(self, message: str):
         """Broadcast message to all connected users"""
         disconnected_users = []
