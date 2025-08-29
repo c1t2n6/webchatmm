@@ -65,24 +65,24 @@ class RoomManager:
         return db.query(User).filter(User.id == other_user_id).first()
     
     @staticmethod
-    def create_user_response(user: User) -> UserResponse:
-        """Create UserResponse from User model"""
-        return UserResponse(
-            id=user.id,
-            username=user.username,
-            nickname=user.nickname,
-            dob=user.dob,
-            gender=user.gender,
-            preferred_gender=json.loads(user.preferred_gender) if user.preferred_gender else [],
-            needs=json.loads(user.needs) if user.needs else [],
-            interests=json.loads(user.interests) if user.interests else [],
-            profile_completed=user.profile_completed,
-            status=user.status,
-            online_status=user.online_status,
-            avatar_url=image_processor.get_avatar_url(user.avatar_url, 0),
-            role=user.role,
-            created_at=user.created_at
-        )
+    def create_user_response(user: User) -> dict:
+        """Create user response dict from User model"""
+        return {
+            "id": user.id,
+            "username": user.username,
+            "nickname": user.nickname,
+            "dob": user.dob.isoformat() if user.dob else None,
+            "gender": user.gender.value if user.gender else None,
+            "preferred_gender": json.loads(user.preferred_gender) if user.preferred_gender else [],
+            "needs": json.loads(user.needs) if user.needs else [],
+            "interests": json.loads(user.interests) if user.interests else [],
+            "profile_completed": user.profile_completed,
+            "status": user.status,
+            "online_status": user.online_status,
+            "avatar_url": image_processor.get_avatar_url(user.avatar_url, 0),
+            "role": user.role,
+            "created_at": user.created_at.isoformat() if user.created_at else None
+        }
 
 @router.post("/search", response_model=MatchingResponse)
 async def search_chat(
@@ -107,7 +107,7 @@ async def search_chat(
                     
                     return MatchingResponse(
                         room_id=current_user.current_room_id,
-                        matched_user=matched_user_response,
+                        matched_user=UserResponse(**matched_user_response),
                         icebreaker="Bạn đã có sẵn phòng chat!"
                     )
         
@@ -161,7 +161,7 @@ async def search_chat(
                     match_notification = {
                         "type": "match_found",
                         "room_id": current_user.current_room_id,
-                        "matched_user": matched_user_response.dict(),
+                        "matched_user": matched_user_response,
                         "icebreaker": icebreaker,
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     }
@@ -173,7 +173,7 @@ async def search_chat(
                     
                     return MatchingResponse(
                         room_id=current_user.current_room_id,
-                        matched_user=matched_user_response,
+                        matched_user=UserResponse(**matched_user_response),
                         icebreaker=icebreaker
                     )
         
@@ -626,7 +626,7 @@ async def get_current_room(
         
         return MatchingResponse(
             room_id=current_user.current_room_id,
-            matched_user=matched_user_response,
+            matched_user=UserResponse(**matched_user_response),
             icebreaker="Chào mừng bạn trở lại phòng chat!"
         )
         
