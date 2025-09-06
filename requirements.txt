@@ -1,12 +1,12 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-sqlalchemy==2.0.23
-python-multipart==0.0.6
+fastapi==0.68.2
+uvicorn==0.15.0
+sqlalchemy==1.4.53
+python-multipart==0.0.5
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 structlog==23.2.0
 websockets==12.0
 python-dotenv==1.0.0
-pydantic==2.2.0
+pydantic==1.10.13
 alembic==1.13.1
 email-validator==2.1.0
