@@ -6,11 +6,13 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
+    import os
     # Railway.app compatible configuration
+    port = int(os.getenv("PORT", 8000))
     uvicorn.run(
         app, 
-        host=settings.host, 
-        port=settings.port,
-        log_level=settings.log_level.lower(),
+        host="0.0.0.0", 
+        port=port,
+        log_level="info",
         access_log=True
     )

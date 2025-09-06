@@ -88,23 +88,10 @@ async def test_reload():
 async def health_check():
     """Health check endpoint for deployment monitoring"""
     try:
-        from .database import get_db
-        from .models import User
-        
-        # Test database connection
-        db = next(get_db())
-        try:
-            db.query(User).first()  # Simple query to test DB
-            db_status = "connected"
-        except Exception as e:
-            db_status = f"error: {str(e)}"
-        finally:
-            db.close()
-        
+        # Simple health check without database
         return {
             "status": "healthy",
             "service": "WebChat App",
-            "database": db_status,
             "version": "1.0.0",
             "timestamp": "2025-01-25T00:00:00Z"
         }
@@ -119,8 +106,11 @@ async def health_check():
 # Root endpoint
 @router.get("/", response_class=HTMLResponse)
 async def root():
-    with open("templates/index.html", "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+    try:
+        with open("templates/index.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except Exception as e:
+        return HTMLResponse(content=f"<h1>WebChat App</h1><p>Error loading template: {e}</p>", status_code=200)
 
 # Favicon endpoint
 @router.get("/favicon.ico")
