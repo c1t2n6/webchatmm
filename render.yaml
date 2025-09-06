@@ -1,12 +1,13 @@
 services:
   - type: web
     name: webchat-app
-    env: docker
+    env: python
     plan: starter
-    dockerfilePath: ./Dockerfile
-    buildCommand: echo "Database initialization handled in Dockerfile"
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && python scripts/init_db.py
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.18
       - key: PYTHONPATH
         value: .
       - key: JWT_SECRET_KEY
