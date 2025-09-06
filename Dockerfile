@@ -1,4 +1,4 @@
-FROM python:3.11.5-slim
+FROM python:3.9.18-slim
 
 WORKDIR /app
 
@@ -19,6 +19,9 @@ COPY . .
 
 # Create necessary directories
 RUN mkdir -p logs static/uploads
+
+# Initialize database
+RUN python scripts/init_db.py
 
 # Expose port
 EXPOSE 8000
