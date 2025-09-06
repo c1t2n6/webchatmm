@@ -1,11 +1,16 @@
+#!/usr/bin/env python3
+"""
+Main entry point for WebChat App
+Railway.app compatible
+"""
+
 import sys
 import os
 
-# Add the parent directory to Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add current directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.app_factory import create_app
-from app.config import settings
 
 # Create the FastAPI application
 app = create_app()
