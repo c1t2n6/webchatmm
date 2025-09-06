@@ -234,17 +234,9 @@ async def keep_active_response(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Send keep active response for chat room"""
+    """Send keep active response for chat room - Sử dụng service thống nhất"""
     
     try:
-        # Validate room access
-        has_access, room, error_msg = RoomManager.validate_user_room_access(current_user, room_id, db)
-        if not has_access:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=error_msg
-            )
-        
         # Validate keep active response
         if like_data.response not in ["yes", "no"]:
             raise HTTPException(
@@ -252,69 +244,26 @@ async def keep_active_response(
                 detail="Phản hồi không hợp lệ"
             )
         
-        # Parse existing keep active responses
-        keep_active_responses = json.loads(room.keep_active_responses) if room.keep_active_responses else {}
+        # Sử dụng UnifiedRoomService
+        from app.services.unified_room_service import unified_room_service
+        result = await unified_room_service.handle_keep_active_request(
+            room_id, current_user.id, like_data.response
+        )
         
-        # Add current user's response
-        user_key = "user1" if current_user.id == room.user1_id else "user2"
-        keep_active_responses[user_key] = like_data.response
-        
-        room.keep_active_responses = json.dumps(keep_active_responses)
-        
-        # Hủy auto-end timer vì đã có user phản hồi
-        from app.services.countdown_notification_service import countdown_notification_service
-        countdown_notification_service.cancel_all_timers(room_id)
-        
-        # Check if current user said "no" - end room immediately
-        if like_data.response == "no":
-            room.end_time = datetime.now(timezone.utc)
-            logger.info(f"Room {room_id} ended due to user {current_user.id} not wanting to continue")
-            
-            # Notify users via WebSocket
-            from app.websocket_manager import manager
-            await manager.broadcast_to_room(
-                json.dumps({
-                    "type": "room_ended",
-                    "room_id": room_id,
-                    "reason": "user_dislike",
-                    "message": "Phòng chat đã kết thúc do một trong hai người không muốn tiếp tục"
-                }),
-                room_id
+        if "error" in result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result["error"]
             )
-        else:
-            # User said "yes" - check if both users want to continue
-            if len(keep_active_responses) == 2:
-                user1_response = keep_active_responses.get("user1")
-                user2_response = keep_active_responses.get("user2")
-                
-                if user1_response == "yes" and user2_response == "yes":
-                    # Both want to continue - set keep_active to true
-                    room.keep_active = True
-                    logger.info(f"Room {room_id} - both users want to continue, setting keep_active=True")
-                    
-                    # Notify users via WebSocket
-                    from app.websocket_manager import manager
-                    await manager.broadcast_to_room(
-                        json.dumps({
-                            "type": "room_kept",
-                            "room_id": room_id,
-                            "message": "Cả 2 user đã đồng ý tiếp tục cuộc trò chuyện",
-                            "timestamp": datetime.now(timezone.utc).isoformat()
-                        }),
-                        room_id
-                    )
         
-        db.commit()
-        
-        return {"message": "Đã gửi phản hồi", "reveal_level": room.reveal_level}
+        return result
         
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Lỗi gửi phản hồi like: {str(e)}"
+            detail=f"Lỗi gửi phản hồi: {str(e)}"
         )
 
 
@@ -341,37 +290,26 @@ async def keep_session(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Keep chat session active"""
+    """Keep chat session active - Sử dụng UnifiedRoomService"""
     
     try:
-        # Validate room access
-        has_access, room, error_msg = RoomManager.validate_user_room_access(current_user, room_id, db)
-        if not has_access:
+        # Sử dụng UnifiedRoomService
+        from app.services.unified_room_service import unified_room_service
+        result = await unified_room_service.handle_keep_active_request(
+            room_id, current_user.id, "yes"
+        )
+        
+        if "error" in result:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=error_msg
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result["error"]
             )
         
-        room.keep_active = keep_data.keep_active
-        db.commit()
-        
-        # Kiểm tra xem cả 2 user đã giữ hoạt động chưa
-        if room.keep_active:
-            # Gửi WebSocket message để ẩn countdown
-            from app.websocket_manager import manager
-            await manager.broadcast_to_room(room_id, {
-                "type": "room_kept",
-                "message": "Cả 2 user đã đồng ý giữ phòng",
-                "room_id": room_id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
-        
-        return {"message": "Đã cập nhật trạng thái giữ phiên"}
+        return result
         
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Lỗi cập nhật trạng thái: {str(e)}"
@@ -430,6 +368,20 @@ async def report_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Lỗi báo cáo: {str(e)}"
         )
+
+@router.post("/cancel-countdown/{room_id}")
+async def cancel_countdown_redirect(
+    room_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Redirect to correct cancel countdown endpoint"""
+    # Redirect to the correct simple-countdown endpoint
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(
+        url=f"/simple-countdown/cancel/{room_id}",
+        status_code=307  # Temporary redirect
+    )
 
 @router.post("/end/{room_id}")
 async def end_session(

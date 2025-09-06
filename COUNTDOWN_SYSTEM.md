@@ -1,12 +1,12 @@
-# ⏰ Countdown System - Đơn Giản & Ổn Định
+# ⏰ Unified Room Service - Hệ Thống Thống Nhất
 
 ## 📋 Tổng Quan
 
-Hệ thống countdown đơn giản hóa với logic rõ ràng:
-- **Chỉ Backend Timer**: Không có frontend timer
-- **WebSocket Updates**: Chỉ hiển thị theo WebSocket
-- **State Đồng Bộ**: Frontend state = Backend state
-- **Code Sạch**: Dễ hiểu, dễ maintain
+UnifiedRoomService - Service duy nhất quản lý toàn bộ room lifecycle:
+- **Single Service**: Thay thế RoomLifecycleService và SimpleCountdownService
+- **Single Source of Truth**: Chỉ sử dụng database
+- **Logic Rõ Ràng**: Timeout logic được phân biệt rõ ràng
+- **Code Sạch**: Dễ hiểu, dễ maintain, không có conflict
 
 ## 🏗️ Kiến Trúc
 

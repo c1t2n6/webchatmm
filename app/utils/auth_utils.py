@@ -72,16 +72,24 @@ async def get_current_user(
     
     try:
         token = credentials.credentials
+        print(f"🔍 Auth - Token received: {token[:20]}...")
+        
         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
         username: str = payload.get("sub")
+        print(f"🔍 Auth - Username from token: {username}")
+        
         if username is None:
+            print("❌ Auth - No username in token")
             raise credentials_exception
         token_data = TokenData(username=username)
-    except JWTError:
+    except JWTError as e:
+        print(f"❌ Auth - JWT Error: {e}")
         raise credentials_exception
     
     user = db.query(User).filter(User.username == token_data.username).first()
     if user is None:
+        print(f"❌ Auth - User not found: {token_data.username}")
         raise credentials_exception
     
+    print(f"✅ Auth - User authenticated: {user.username} (ID: {user.id})")
     return user

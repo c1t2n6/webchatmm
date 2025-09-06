@@ -36,6 +36,9 @@ export class SimpleCountdownModuleV2 {
                 case 'room_kept':
                     this.handleRoomKept(data);
                     break;
+                case 'waiting_for_other':
+                    this.handleWaitingForOther(data);
+                    break;
                 case 'room_ended':
                     this.handleRoomEnded(data);
                     break;
@@ -79,7 +82,8 @@ export class SimpleCountdownModuleV2 {
         
         this.showNotification({
             message: data.message || 'Bạn có muốn tiếp tục cuộc trò chuyện với người này không?',
-            timeout: data.timeout || 30
+            timeout: data.timeout || 30,
+            users_to_notify: data.users_to_notify || []  // Truyền users_to_notify
         });
     }
     
@@ -113,7 +117,23 @@ export class SimpleCountdownModuleV2 {
         console.log('⏰ Room kept:', data);
         this.hideCountdown();
         this.hideNotification();
+        
+        // Đồng bộ trạng thái nút "Giữ hoạt động" khi cả 2 user đã đồng ý
+        if (this.app && this.app.chatModule && this.app.chatModule.updateKeepActiveButton) {
+            this.app.chatModule.updateKeepActiveButton();
+        }
+        
         this.showToast(data.message, 'success');
+    }
+    
+    /**
+     * Xử lý waiting for other user
+     */
+    handleWaitingForOther(data) {
+        console.log('⏰ Waiting for other user:', data);
+        
+        // Chỉ hiển thị toast thông báo, không thay đổi trạng thái nút
+        this.showToast(data.message, 'info');
     }
     
     /**
@@ -124,6 +144,11 @@ export class SimpleCountdownModuleV2 {
         this.hideCountdown();
         this.hideNotification();
         this.showToast(data.message, 'error');
+        
+        // Reset trạng thái nút "Giữ hoạt động"
+        if (this.app && this.app.chatModule && this.app.chatModule.resetKeepActiveButton) {
+            this.app.chatModule.resetKeepActiveButton();
+        }
         
         // Reset chat state
         if (this.app && this.app.chatModule) {
@@ -239,6 +264,73 @@ export class SimpleCountdownModuleV2 {
      * Hiển thị notification
      */
     showNotification(data) {
+        console.log('⏰ showNotification called with data:', data);
+        
+        // Kiểm tra xem user hiện tại có cần hiển thị notification không
+        if (data.users_to_notify && data.users_to_notify.length > 0) {
+            console.log('⏰ users_to_notify found, checking current user...');
+            
+            // Lấy current user ID từ nhiều nguồn
+            let currentUserId = null;
+            
+            // Thử lấy từ app.currentUser
+            if (this.app && this.app.currentUser && this.app.currentUser.id) {
+                currentUserId = this.app.currentUser.id;
+                console.log('⏰ Got user ID from app.currentUser:', currentUserId);
+            }
+            
+            // Thử lấy từ localStorage nếu không có
+            if (!currentUserId) {
+                const userData = localStorage.getItem('user_data');
+                if (userData) {
+                    try {
+                        const user = JSON.parse(userData);
+                        currentUserId = user.id;
+                        console.log('⏰ Got user ID from localStorage:', currentUserId);
+                    } catch (e) {
+                        console.warn('⏰ Could not parse user data from localStorage');
+                    }
+                }
+            }
+            
+            // Thử lấy từ token nếu không có
+            if (!currentUserId) {
+                const token = localStorage.getItem('access_token');
+                if (token) {
+                    try {
+                        const payload = JSON.parse(atob(token.split('.')[1]));
+                        currentUserId = payload.user_id;
+                        console.log('⏰ Got user ID from token:', currentUserId);
+                    } catch (e) {
+                        console.warn('⏰ Could not parse user ID from token');
+                    }
+                }
+            }
+            
+            console.log('⏰ Final current user ID:', currentUserId);
+            console.log('⏰ Users to notify:', data.users_to_notify);
+            
+            if (currentUserId) {
+                // Convert currentUserId to integer for comparison
+                const currentUserIdInt = parseInt(currentUserId);
+                const usersToNotifyInts = data.users_to_notify.map(id => parseInt(id));
+                
+                console.log('⏰ Current user ID (int):', currentUserIdInt);
+                console.log('⏰ Users to notify (ints):', usersToNotifyInts);
+                
+                if (!usersToNotifyInts.includes(currentUserIdInt)) {
+                    console.log('⏰ User already kept active, skipping notification display');
+                    return;
+                } else {
+                    console.log('⏰ User needs notification, showing...');
+                }
+            } else {
+                console.warn('⏰ Could not get current user ID, showing notification anyway');
+            }
+        } else {
+            console.log('⏰ No users_to_notify or empty array, showing notification for all users');
+        }
+        
         this.hideNotification();
         
         const modal = document.createElement('div');
@@ -349,6 +441,16 @@ export class SimpleCountdownModuleV2 {
         
         console.log('⏰ User response:', isYes ? 'Yes' : 'No');
         
+        if (isYes) {
+            // Nếu user chọn "Có" - gọi method thống nhất từ chat module
+            if (this.app && this.app.chatModule && this.app.chatModule.handleKeepActiveRequest) {
+                await this.app.chatModule.handleKeepActiveRequest();
+                this.hideNotification();
+                return;
+            }
+        }
+        
+        // Nếu user chọn "Không" hoặc không có chat module - xử lý bình thường
         try {
             const response = await fetch(`/simple-countdown/response/${this.currentRoomId}`, {
                 method: 'POST',
@@ -375,13 +477,31 @@ export class SimpleCountdownModuleV2 {
             } else {
                 const error = await response.text();
                 console.error('⏰ Error sending response:', response.status, error);
-                this.showToast('Lỗi gửi phản hồi. Vui lòng thử lại.', 'error');
+                
+                // Parse error message for better user feedback
+                let errorMessage = 'Lỗi gửi phản hồi. Vui lòng thử lại.';
+                try {
+                    const errorData = JSON.parse(error);
+                    if (errorData.detail) {
+                        if (errorData.detail === "Not in notification phase") {
+                            errorMessage = 'Không thể gửi phản hồi lúc này. Vui lòng đợi thông báo từ hệ thống.';
+                        } else {
+                            errorMessage = errorData.detail;
+                        }
+                    }
+                } catch (e) {
+                    // Use default error message if parsing fails
+                }
+                
+                this.showToast(errorMessage, 'error');
             }
         } catch (error) {
             console.error('⏰ Error sending response:', error);
             this.showToast('Lỗi kết nối. Vui lòng thử lại.', 'error');
         }
     }
+    
+    // Các method này đã được chuyển sang chat module để đồng bộ tốt hơn
     
     /**
      * Bắt đầu countdown cho room
@@ -485,6 +605,7 @@ export class SimpleCountdownModuleV2 {
     cleanup() {
         this.hideCountdown();
         this.hideNotification();
+        this.resetKeepActiveButton();
         this.currentRoomId = null;
         console.log('⏰ SimpleCountdownModuleV2 cleaned up');
     }

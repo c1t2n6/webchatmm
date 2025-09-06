@@ -232,6 +232,10 @@ class ChatModule {
     async loadChatHistory(roomId) {
         console.log('🔍 Chat - Loading chat history for room:', roomId);
         
+        // ✅ RESET: Reset trạng thái nút "Giữ hoạt động" khi load phòng mới
+        this.resetKeepActiveButton();
+        console.log('🔍 Chat - Reset keep active button for new room history');
+        
         try {
             const response = await fetch(`/chat/${roomId}/history`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
@@ -768,6 +772,10 @@ class ChatModule {
         // ✅ THÊM: Ẩn countdown timer
         this.hideCountdownTimer();
         
+        // ✅ THÊM: Reset trạng thái nút "Giữ hoạt động"
+        this.resetKeepActiveButton();
+        console.log('🔍 Chat - Reset keep active button in resetChatState');
+        
         // Đóng WebSocket connections
         if (this.chatWebSocket) {
             console.log('🔍 Chat - Closing chat WebSocket');
@@ -885,6 +893,11 @@ class ChatModule {
     // ✅ THÊM: Wrapper method để show chat room và sync countdown
     async showChatRoomWithSync() {
         this.app.showChatRoom();
+        
+        // ✅ RESET: Reset trạng thái nút "Giữ hoạt động" khi hiển thị phòng mới
+        this.resetKeepActiveButton();
+        console.log('🔍 Chat - Reset keep active button in showChatRoomWithSync');
+        
         // Đợi một chút để DOM được render
         setTimeout(() => {
             this.syncCountdownStatus();
@@ -1000,6 +1013,10 @@ class ChatModule {
 
         chatWs.onopen = async () => {
             console.log('🔍 Chat - Chat WebSocket connected successfully to room:', roomId);
+            
+            // ✅ RESET: Reset trạng thái nút "Giữ hoạt động" khi vào phòng mới
+            this.resetKeepActiveButton();
+            console.log('🔍 Chat - Reset keep active button for new room');
             
             // Load chat history khi WebSocket kết nối
             await this.loadChatHistory(roomId);
@@ -1270,22 +1287,101 @@ class ChatModule {
         if (!this.app.currentRoom) return;
 
         try {
-            // Sử dụng simple countdown system để giữ hoạt động
-            if (this.app.simpleCountdownModule) {
-                // Gửi response "yes" để giữ room
-                await this.app.simpleCountdownModule.handleResponse(true);
-            }
-            
-            const keepActiveBtn = document.getElementById('keepActive');
-            if (keepActiveBtn) {
-                keepActiveBtn.textContent = 'Đã giữ hoạt động';
-                keepActiveBtn.disabled = true;
-            }
-            
-            // Ẩn countdown khi user giữ hoạt động
-            this.hideCountdownTimer();
+            // Gọi method thống nhất để xử lý giữ hoạt động
+            await this.handleKeepActiveRequest();
         } catch (error) {
             console.error('Keep active error:', error);
+        }
+    }
+    
+    async handleKeepActiveRequest() {
+        // Method thống nhất để xử lý giữ hoạt động - được gọi từ cả 2 nút
+        try {
+            // Kiểm tra token trước khi gửi request
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                console.error('❌ No access token found');
+                this.showToast('Vui lòng đăng nhập lại', 'error');
+                this.app.authModule.logout();
+                return;
+            }
+            
+            console.log('🔍 Sending keep active request to room:', this.app.currentRoom.id);
+            console.log('🔍 Token exists:', !!token);
+            
+            const response = await fetch(`/chat/keep/${this.app.currentRoom.id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ keep_active: true })
+            });
+            
+            console.log('🔍 Keep active response status:', response.status);
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('✅ Keep active request sent successfully:', result);
+                
+                // Cập nhật UI ngay lập tức
+                this.updateKeepActiveButton();
+                
+                // Ẩn countdown
+                this.hideCountdownTimer();
+                
+                // Xử lý kết quả
+                if (result.room_kept) {
+                    this.showToast(result.message, 'success');
+                } else if (result.waiting_for_other) {
+                    this.showToast(result.message, 'info');
+                }
+            } else if (response.status === 401) {
+                // Token hết hạn hoặc không hợp lệ
+                console.error('❌ Authentication failed - token expired or invalid');
+                this.showToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+                this.app.authModule.logout();
+            } else {
+                const error = await response.text();
+                console.error('❌ Keep active request failed:', response.status, error);
+                this.showToast('Lỗi gửi yêu cầu giữ hoạt động', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Error sending keep active request:', error);
+            this.showToast('Lỗi kết nối', 'error');
+        }
+    }
+    
+    updateKeepActiveButton() {
+        // Cập nhật trạng thái nút giữ hoạt động
+        const keepActiveBtn = document.getElementById('keepActive');
+        if (keepActiveBtn) {
+            keepActiveBtn.textContent = 'Đã giữ hoạt động';
+            keepActiveBtn.disabled = true;
+            keepActiveBtn.style.background = '#10B981'; // Màu xanh lá
+            keepActiveBtn.style.cursor = 'not-allowed';
+        }
+    }
+    
+    showToast(message, type = 'info') {
+        // Hiển thị toast notification
+        // Sử dụng toast từ simple_countdown_module nếu có
+        if (this.app.simpleCountdownModule && this.app.simpleCountdownModule.showToast) {
+            this.app.simpleCountdownModule.showToast(message, type);
+        } else {
+            // Fallback toast đơn giản
+            console.log(`Toast (${type}): ${message}`);
+        }
+    }
+    
+    resetKeepActiveButton() {
+        // Reset trạng thái nút giữ hoạt động về ban đầu
+        const keepActiveBtn = document.getElementById('keepActive');
+        if (keepActiveBtn) {
+            keepActiveBtn.textContent = 'Giữ hoạt động';
+            keepActiveBtn.disabled = false;
+            keepActiveBtn.style.background = ''; // Reset màu
+            keepActiveBtn.style.cursor = ''; // Reset cursor
         }
     }
 

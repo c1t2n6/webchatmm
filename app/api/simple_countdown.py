@@ -11,7 +11,7 @@ from app.database import get_db
 from app.models import Room, User
 from app.schemas import ChatLike
 from app.utils.auth_utils import get_current_user
-from app.services.simple_countdown_service import simple_countdown_service
+from app.services.unified_room_service import unified_room_service
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ async def start_countdown(
             )
         
         # Start countdown
-        success = await simple_countdown_service.start_countdown(room_id)
+        success = await unified_room_service.start_countdown(room_id)
         
         if success:
             return {"message": "Countdown đã được bắt đầu", "room_id": room_id}
@@ -104,7 +104,7 @@ async def handle_response(
             )
         
         # Handle response
-        result = await simple_countdown_service.handle_user_response(
+        result = await unified_room_service.handle_user_response(
             room_id, current_user.id, response_data.response
         )
         
@@ -149,7 +149,7 @@ async def get_status(
             )
         
         # Get status
-        status = simple_countdown_service.get_room_status(room_id)
+        status = unified_room_service.get_room_status(room_id)
         
         return {
             "room_id": room_id,
@@ -190,7 +190,7 @@ async def cancel_countdown(
             )
         
         # Cancel countdown
-        await simple_countdown_service._cancel_room_process(room_id)
+        await unified_room_service._cancel_room_process(room_id)
         
         return {"message": "Countdown đã được hủy", "room_id": room_id}
         
