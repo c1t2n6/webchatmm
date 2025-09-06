@@ -407,14 +407,55 @@ export class SimpleCountdownModuleV2 {
         modal.appendChild(modalContent);
         document.body.appendChild(modal);
         
-        // Event listeners
-        document.getElementById('simple-notification-yes').addEventListener('click', () => {
-            this.handleResponse(true);
-        });
-        
-        document.getElementById('simple-notification-no').addEventListener('click', () => {
-            this.handleResponse(false);
-        });
+        // ✅ SỬA: Đợi DOM được render trước khi thêm event listeners
+        setTimeout(() => {
+            const yesButton = document.getElementById('simple-notification-yes');
+            const noButton = document.getElementById('simple-notification-no');
+            
+            if (yesButton && noButton) {
+                console.log('⏰ Adding event listeners to notification buttons');
+                
+                // ✅ SỬA: Sử dụng arrow functions để bind this context
+                const handleYesClick = () => {
+                    console.log('⏰ Yes button clicked');
+                    this.handleResponse(true);
+                };
+                
+                const handleNoClick = () => {
+                    console.log('⏰ No button clicked');
+                    this.handleResponse(false);
+                };
+                
+                // ✅ SỬA: Thêm event listeners với proper cleanup
+                yesButton.addEventListener('click', handleYesClick, { once: true });
+                noButton.addEventListener('click', handleNoClick, { once: true });
+                
+                // ✅ SỬA: Thêm visual feedback
+                yesButton.addEventListener('mousedown', () => {
+                    yesButton.style.transform = 'scale(0.95)';
+                });
+                yesButton.addEventListener('mouseup', () => {
+                    yesButton.style.transform = 'scale(1)';
+                });
+                yesButton.addEventListener('mouseleave', () => {
+                    yesButton.style.transform = 'scale(1)';
+                });
+                
+                noButton.addEventListener('mousedown', () => {
+                    noButton.style.transform = 'scale(0.95)';
+                });
+                noButton.addEventListener('mouseup', () => {
+                    noButton.style.transform = 'scale(1)';
+                });
+                noButton.addEventListener('mouseleave', () => {
+                    noButton.style.transform = 'scale(1)';
+                });
+                
+                console.log('⏰ Event listeners added successfully');
+            } else {
+                console.error('⏰ Could not find notification buttons:', { yesButton, noButton });
+            }
+        }, 100); // Đợi 100ms để DOM được render
         
         this.notificationModal = modal;
         console.log('⏰ Notification displayed');
@@ -425,8 +466,66 @@ export class SimpleCountdownModuleV2 {
      */
     hideNotification() {
         if (this.notificationModal) {
+            console.log('⏰ Hiding notification modal');
+            
+            // ✅ SỬA: Cleanup event listeners trước khi remove
+            const yesButton = this.notificationModal.querySelector('#simple-notification-yes');
+            const noButton = this.notificationModal.querySelector('#simple-notification-no');
+            
+            if (yesButton) {
+                yesButton.replaceWith(yesButton.cloneNode(true)); // Remove all event listeners
+            }
+            if (noButton) {
+                noButton.replaceWith(noButton.cloneNode(true)); // Remove all event listeners
+            }
+            
             this.notificationModal.remove();
             this.notificationModal = null;
+            console.log('⏰ Notification modal removed');
+        }
+    }
+    
+    /**
+     * Disable notification buttons
+     */
+    disableNotificationButtons() {
+        if (this.notificationModal) {
+            const yesButton = this.notificationModal.querySelector('#simple-notification-yes');
+            const noButton = this.notificationModal.querySelector('#simple-notification-no');
+            
+            if (yesButton) {
+                yesButton.disabled = true;
+                yesButton.style.opacity = '0.5';
+                yesButton.style.cursor = 'not-allowed';
+            }
+            if (noButton) {
+                noButton.disabled = true;
+                noButton.style.opacity = '0.5';
+                noButton.style.cursor = 'not-allowed';
+            }
+            console.log('⏰ Notification buttons disabled');
+        }
+    }
+    
+    /**
+     * Enable notification buttons
+     */
+    enableNotificationButtons() {
+        if (this.notificationModal) {
+            const yesButton = this.notificationModal.querySelector('#simple-notification-yes');
+            const noButton = this.notificationModal.querySelector('#simple-notification-no');
+            
+            if (yesButton) {
+                yesButton.disabled = false;
+                yesButton.style.opacity = '1';
+                yesButton.style.cursor = 'pointer';
+            }
+            if (noButton) {
+                noButton.disabled = false;
+                noButton.style.opacity = '1';
+                noButton.style.cursor = 'pointer';
+            }
+            console.log('⏰ Notification buttons enabled');
         }
     }
     
@@ -434,19 +533,32 @@ export class SimpleCountdownModuleV2 {
      * Xử lý phản hồi từ user
      */
     async handleResponse(isYes) {
+        console.log('⏰ handleResponse called with:', isYes);
+        
         if (!this.currentRoomId) {
             console.error('⏰ No room ID available for response');
+            this.showToast('Lỗi: Không tìm thấy phòng chat', 'error');
             return;
         }
+        
+        // ✅ SỬA: Disable buttons ngay lập tức để tránh double click
+        this.disableNotificationButtons();
         
         console.log('⏰ User response:', isYes ? 'Yes' : 'No');
         
         if (isYes) {
             // Nếu user chọn "Có" - gọi method thống nhất từ chat module
             if (this.app && this.app.chatModule && this.app.chatModule.handleKeepActiveRequest) {
-                await this.app.chatModule.handleKeepActiveRequest();
-                this.hideNotification();
-                return;
+                try {
+                    await this.app.chatModule.handleKeepActiveRequest();
+                    this.hideNotification();
+                    return;
+                } catch (error) {
+                    console.error('⏰ Error calling handleKeepActiveRequest:', error);
+                    this.enableNotificationButtons(); // Re-enable buttons on error
+                    this.showToast('Lỗi gửi phản hồi. Vui lòng thử lại.', 'error');
+                    return;
+                }
             }
         }
         
@@ -478,6 +590,9 @@ export class SimpleCountdownModuleV2 {
                 const error = await response.text();
                 console.error('⏰ Error sending response:', response.status, error);
                 
+                // ✅ SỬA: Enable buttons lại khi có lỗi
+                this.enableNotificationButtons();
+                
                 // Parse error message for better user feedback
                 let errorMessage = 'Lỗi gửi phản hồi. Vui lòng thử lại.';
                 try {
@@ -497,6 +612,10 @@ export class SimpleCountdownModuleV2 {
             }
         } catch (error) {
             console.error('⏰ Error sending response:', error);
+            
+            // ✅ SỬA: Enable buttons lại khi có lỗi
+            this.enableNotificationButtons();
+            
             this.showToast('Lỗi kết nối. Vui lòng thử lại.', 'error');
         }
     }

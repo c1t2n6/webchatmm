@@ -1,232 +1,244 @@
-# Mapmo.vn - Anonymous Web Chat Application
+# 💬 WebChat - Real-time Chat Application
 
-Ứng dụng web chat ẩn danh thông minh, tập trung vào ghép đôi người dùng dựa trên giới tính, nhu cầu và sở thích.
+A modern, real-time chat application built with FastAPI and WebSocket technology, featuring intelligent room management and user matching system.
 
-## 🚀 Tính Năng Chính
+## 🌟 Features
 
-- **Chat Ẩn Danh**: Trò chuyện text mà không lộ danh tính ban đầu
-- **Ghép Đôi Thông Minh**: Thuật toán matching dựa trên preferences và interests
-- **Reveal Image System**: 3 cấp độ blur (20px → 5px → full) khi cả 2 đồng ý
-- **Like System**: Sau 5 phút chat, hỏi "Bạn có thích người ấy không?"
-- **Privacy First**: Tin nhắn bị xóa hoàn toàn khi kết thúc session
-- **Admin Dashboard**: Quản lý users, reports, và moderation
+### **Core Chat Features**
+- **Real-time Messaging**: Instant message delivery using WebSocket
+- **User Authentication**: Secure JWT-based authentication system
+- **Room Management**: Dynamic chat room creation and management
+- **Message History**: Persistent message storage and retrieval
+- **File Uploads**: Support for image and file sharing
 
-## 🛠️ Tech Stack
+### **Advanced Room Lifecycle Management**
+- **Smart Room Keeping**: Users can choose to keep conversations active
+- **Countdown System**: Automatic room termination with countdown timer
+- **Notification System**: Interactive notifications for room decisions
+- **Unified State Management**: Centralized room state handling
 
-- **Backend**: FastAPI + SQLAlchemy + SQLite
-- **Frontend**: HTML + Tailwind CSS + Vanilla JavaScript
-- **Real-time**: WebSocket native
-- **Authentication**: JWT + bcrypt
-- **Logging**: structlog
+### **User Matching System**
+- **Compatibility Scoring**: AI-powered user matching algorithm
+- **Queue Management**: Efficient user pairing system
+- **Profile Management**: User profile creation and management
+- **Like System**: User preference tracking
 
-## 📋 Yêu Cầu Hệ Thống
+## 🏗️ Architecture
 
+### **Backend (FastAPI)**
+```
+app/
+├── api/                    # API endpoints
+│   ├── auth.py            # Authentication endpoints
+│   ├── chat.py            # Chat and room management
+│   ├── simple_countdown.py # Countdown and notification system
+│   └── user.py            # User management
+├── services/              # Business logic services
+│   ├── chat_service.py    # Chat message handling
+│   └── unified_room_service.py # Centralized room lifecycle
+├── utils/                 # Utility functions
+│   ├── auth_utils.py      # JWT authentication
+│   ├── image_utils.py     # Image processing
+│   └── matching/          # User matching algorithms
+├── websocket/             # WebSocket handling
+│   ├── connection_manager.py
+│   ├── websocket_manager.py
+│   └── websocket_routes.py
+└── models/                # Database models
+```
+
+### **Frontend (Vanilla JavaScript)**
+```
+static/js/modules/
+├── app.js                 # Main application controller
+├── auth.js               # Authentication handling
+├── chat.js               # Chat interface and room management
+├── simple_countdown_v2.js # Countdown and notification UI
+├── profile.js            # User profile management
+├── like.js               # Like system
+├── timer_manager.js      # Timer utilities
+├── ui.js                 # UI utilities
+└── utils.js              # General utilities
+```
+
+## 🚀 Quick Start
+
+### **Prerequisites**
 - Python 3.8+
-- pip
-- Virtual environment (khuyến nghị)
+- SQLite (or PostgreSQL for production)
 
-## 🚀 Cài Đặt & Chạy
+### **Installation**
 
-### 1. Clone Repository
+1. **Clone the repository**
 ```bash
 git clone <repository-url>
 cd webchat
 ```
 
-### 2. Tạo Virtual Environment
+2. **Create virtual environment**
 ```bash
 python -m venv venv
-# Windows
-venv\Scripts\activate
-# macOS/Linux
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-### 3. Cài Đặt Dependencies
+3. **Install dependencies**
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Tạo File .env
+4. **Set up environment variables**
 ```bash
 cp env.example .env
-# Chỉnh sửa .env với các giá trị thực tế
+# Edit .env with your configuration
 ```
 
-### 5. Khởi Tạo Database
+5. **Initialize database**
 ```bash
 python scripts/init_db.py
 ```
 
-### 6. Chạy Ứng Dụng
+6. **Run the application**
 ```bash
-python -m app.main
-# Hoặc
 uvicorn app.main:app --reload
 ```
 
-Ứng dụng sẽ chạy tại: http://localhost:8000
+The application will be available at `http://localhost:8000`
 
-## 🔐 Admin Access
+## 🔧 Configuration
 
-- **Username**: Admin
-- **Password**: Passwordnaoday123
+### **Environment Variables**
+```env
+# Database
+DATABASE_URL=sqlite:///./app.db
 
-## 📱 API Endpoints
+# JWT Settings
+JWT_SECRET_KEY=your-secret-key
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
 
-### Authentication
-- `POST /auth/signup` - Đăng ký tài khoản
-- `POST /auth/login` - Đăng nhập
-- `POST /auth/refresh` - Refresh token
-- `POST /auth/logout` - Đăng xuất
+# Application
+DEBUG=True
+HOST=0.0.0.0
+PORT=8000
+```
 
-### User Management
-- `GET /user/profile` - Lấy thông tin profile
-- `PUT /user/profile/update` - Cập nhật profile
-- `POST /user/avatar/upload` - Upload avatar
-- `GET /user/status` - Lấy trạng thái user
+## 📱 API Documentation
 
-### Chat & Matching
-- `POST /chat/search` - Tìm kiếm chat partner
-- `POST /chat/cancel-search` - Hủy tìm kiếm
-- `POST /chat/like/{room_id}` - Gửi like response
-- `POST /chat/keep/{room_id}` - Giữ session active
-- `POST /chat/report/{room_id}` - Báo cáo user
-- `POST /chat/end/{room_id}` - Kết thúc session
+### **Authentication Endpoints**
+- `POST /auth/register` - User registration
+- `POST /auth/login` - User login
+- `POST /auth/logout` - User logout
 
-### Admin
-- `GET /admin/dashboard` - Dashboard thống kê
-- `GET /admin/users` - Danh sách users
-- `GET /admin/users/{user_id}` - Chi tiết user
-- `PUT /admin/users/{user_id}` - Cập nhật user
-- `POST /admin/users/{user_id}/ban` - Ban user
-- `POST /admin/users/{user_id}/unban` - Unban user
-- `GET /admin/reports` - Danh sách reports
-- `GET /admin/rooms` - Danh sách rooms
+### **Chat Endpoints**
+- `GET /chat/rooms` - Get user's chat rooms
+- `POST /chat/rooms` - Create new chat room
+- `POST /chat/keep/{room_id}` - Keep room active
+- `POST /chat/like/{room_id}` - Respond to keep active request
 
-### WebSocket
-- `ws://localhost:8000/ws/chat/{room_id}` - Chat room
-- `ws://localhost:8000/ws/status` - Status updates
+### **Countdown Endpoints**
+- `POST /simple-countdown/start/{room_id}` - Start countdown
+- `POST /simple-countdown/response/{room_id}` - Respond to notification
+- `GET /simple-countdown/status/{room_id}` - Get room status
 
-## 🗄️ Database Schema
+### **WebSocket Endpoints**
+- `WS /ws/chat/{room_id}` - Chat room WebSocket
+- `WS /ws/notifications` - Global notifications
 
-### Users
-- Thông tin cơ bản: username, nickname, email, dob, gender
-- Preferences: preferred_gender, needs, interests
-- Status: profile_completed, status, online_status, current_room_id
-- Moderation: reports_count, banned_until, role
+## 🎯 Room Lifecycle System
 
-### Rooms
-- Chat sessions: user1_id, user2_id, start_time, end_time
-- Like system: like_responses, reveal_level
-- Session control: keep_active, last_message_time
+### **Room States**
+1. **IDLE**: Room is active, waiting for countdown
+2. **COUNTDOWN**: 5-minute countdown before notification
+3. **NOTIFICATION**: 30-second notification for user decision
+4. **ENDED**: Room terminated
 
-### Messages
-- Chat content: room_id, user_id, content, timestamp
-- **Lưu ý**: Messages bị xóa hoàn toàn khi session kết thúc
+### **User Actions**
+- **Keep Active**: User chooses to continue conversation
+- **End Chat**: User chooses to end conversation
+- **No Response**: User doesn't respond within timeout
 
-### Reports
-- User reports: reporter_id, reported_user_id, room_id, reason
-- Auto-ban system: >=5 reports → ban 1 ngày
+### **Room Outcomes**
+- **Room Kept**: Both users chose to keep active
+- **Room Ended**: At least one user chose to end or didn't respond
 
 ## 🔒 Security Features
 
-- JWT authentication với expiry 1 giờ
-- Password hashing với bcrypt
-- Rate limiting: Search (5/min), Upload (10/min), Login (3/min)
-- Input validation nghiêm ngặt
-- Age verification (>18 tuổi)
-- No self-matching
-- Content moderation system
-
-## 🎯 Business Logic
-
-### Matching Algorithm
-1. **Gender Preference**: Kiểm tra giới tính mong muốn
-2. **Needs Matching**: Phải có >=1 nhu cầu trùng
-3. **Interests Scoring**: Tính điểm dựa trên số sở thích chung
-4. **Fallback**: Random matching sau 30s timeout
-
-### Chat Session Flow
-1. **Match** → Tạo room, cả 2 = CONNECTED
-2. **5 phút** → Hiện modal "Bạn có muốn tiếp tục cuộc trò chuyện với người này không?"
-3. **Keep Active Response**:
-   - **Nút "Có"** → Giữ cuộc trò chuyện (keep_active = true)
-   - **Nút "Không"** → Kết thúc cuộc trò chuyện ngay lập tức
-   - **Cả 2 "Có"** → Reveal ảnh dần, mở voice
-   - **Timeout 30s** → Auto end nếu cả 2 không đều giữ cuộc trò chuyện
-4. **Inactivity**: 15 phút không tin nhắn → auto end (trừ khi Keep)
-
-### Notification System Logic
-- **Targeted Notification**: Chỉ gửi cho user chưa giữ cuộc trò chuyện
-- **Button Meanings**:
-  - ✅ **"Có - Tôi muốn tiếp tục"** = Giữ cuộc trò chuyện
-  - ❌ **"Không - Kết thúc cuộc trò chuyện"** = End room ngay lập tức
-- **Auto-end Condition**: Kết thúc phòng nếu cả 2 không đều giữ cuộc trò chuyện sau 30s
-
-### Image Reveal System
-- **Level 0**: Blur (Gaussian 20px) - Mặc định
-- **Level 1**: Semi-blur (Gaussian 5px) - Sau like round 1
-- **Level 2**: Full image - Sau like round 2 thành công
-
-## 🧪 Testing
-
-### Backend Testing
-```bash
-pytest tests/
-```
-
-### Performance Testing
-```bash
-python scripts/fake_users.py --num=100
-```
+- **JWT Authentication**: Secure token-based authentication
+- **Password Hashing**: Bcrypt password hashing
+- **CORS Protection**: Configured CORS policies
+- **Input Validation**: Pydantic model validation
+- **SQL Injection Protection**: SQLAlchemy ORM protection
 
 ## 🚀 Deployment
 
-### Render.com (Recommended)
-1. Connect GitHub repository
-2. Build Command: `bash build.sh`
-3. Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-4. Environment Variables: Copy từ .env
+### **Render.com Deployment**
 
-### Local Production
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+1. **Connect your repository** to Render.com
+2. **Create a new Web Service**
+3. **Configure build settings**:
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. **Set environment variables** in Render dashboard
+5. **Deploy!**
+
+### **Environment Variables for Production**
+```env
+DATABASE_URL=postgresql://user:password@host:port/database
+JWT_SECRET_KEY=your-production-secret-key
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+DEBUG=False
 ```
+
+## 🧪 Testing
+
+### **Run Tests**
+```bash
+# Install test dependencies
+pip install pytest pytest-asyncio
+
+# Run tests
+pytest
+```
+
+### **Manual Testing**
+1. Register two test users
+2. Create a chat room
+3. Test message sending
+4. Test room keeping functionality
+5. Test countdown and notification system
 
 ## 📊 Monitoring
 
-- **Logs**: `logs/app.log` (structlog)
-- **Health Check**: `GET /health`.
-- **Admin Dashboard**: `/admin/dashboard`
+### **Logging**
+- Structured logging with `structlog`
+- Log levels: DEBUG, INFO, WARNING, ERROR
+- Log files in `logs/` directory
 
-## 🔮 Future Extensions
+### **Health Checks**
+- `GET /health` - Application health check
+- Database connection monitoring
+- WebSocket connection tracking
 
-- Voice Call (WebRTC)
-- Premium Features
-- Multilingual Support
-- Push Notifications
-- Mobile App
-- AI-powered Matching
+## 🤝 Contributing
 
-## 📝 Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-1. Fork repository
-2. Tạo feature branch
-3. Commit changes
-4. Push to branch
-5. Tạo Pull Request
+## 📝 License
 
-## 📄 License
-
-MIT License - xem file LICENSE để biết thêm chi tiết.
+This project is licensed under the MIT License.
 
 ## 🆘 Support
 
-- **Issues**: GitHub Issues
-- **Documentation**: Xem LOGIC.md và DEVELOPMENT_PLAN.md
-- **Admin**: Sử dụng admin dashboard tại `/admin`
+For support and questions:
+- Create an issue in the repository
+- Check the API documentation at `/docs`
+- Review the WebSocket documentation at `/ws/docs`
 
 ---
 
-**Lưu ý**: Đây là ứng dụng chat ẩn danh, mọi thay đổi code phải tuân thủ logic trong LOGIC.md để đảm bảo privacy và security.
+**Built with ❤️ using FastAPI, WebSocket, and modern web technologies**

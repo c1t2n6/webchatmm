@@ -86,7 +86,35 @@ async def test_reload():
 # Health check endpoint
 @router.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "Mapmo.vn"}
+    """Health check endpoint for deployment monitoring"""
+    try:
+        from .database import get_db
+        from .models import User
+        
+        # Test database connection
+        db = next(get_db())
+        try:
+            db.query(User).first()  # Simple query to test DB
+            db_status = "connected"
+        except Exception as e:
+            db_status = f"error: {str(e)}"
+        finally:
+            db.close()
+        
+        return {
+            "status": "healthy",
+            "service": "WebChat App",
+            "database": db_status,
+            "version": "1.0.0",
+            "timestamp": "2025-01-25T00:00:00Z"
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "service": "WebChat App",
+            "error": str(e),
+            "timestamp": "2025-01-25T00:00:00Z"
+        }
 
 # Root endpoint
 @router.get("/", response_class=HTMLResponse)
