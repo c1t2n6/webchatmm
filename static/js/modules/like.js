@@ -79,14 +79,23 @@ export class LikeModule {
             clearInterval(this.likeTimer);
         }
         
+        // Sử dụng currentRoomId từ chat module hoặc fallback
+        const roomId = this.app.chatModule?.currentRoomId || (this.app.currentRoom && this.app.currentRoom.id);
+        if (!roomId) {
+            console.error('🔍 Like - No room ID available for like response');
+            return;
+        }
+        
+        console.log('🔍 Like - Sending like response for room:', roomId);
+        
         try {
-            const response = await fetch(`/chat/like/${this.app.currentRoom.id}`, {
+            const response = await fetch(`/chat/like/${roomId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('access_token')}` 
                 },
-                body: JSON.stringify({ liked })
+                body: JSON.stringify({ response: liked ? "yes" : "no" })
             });
 
             if (response.ok) {

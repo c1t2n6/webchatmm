@@ -6,6 +6,8 @@ import { AuthModule } from './modules/auth.js';
 import { ProfileModule } from './modules/profile.js';
 // ChatModule is loaded as a global script
 import { LikeModule } from './modules/like.js';
+// import { NotificationModule } from './modules/notification.js'; // Removed - replaced by SimpleCountdownModule
+import { SimpleCountdownModuleV2 } from './modules/simple_countdown_v2.js';
 import { UIModule } from './modules/ui.js';
 import { UtilsModule } from './modules/utils.js';
 
@@ -33,6 +35,8 @@ class MapmoApp {
         }
         
         this.likeModule = new LikeModule(this);
+        // this.notificationModule = new NotificationModule(this); // Removed - replaced by SimpleCountdownModule
+        this.simpleCountdownModule = new SimpleCountdownModuleV2(this);
         this.uiModule = new UIModule(this);
         this.utilsModule = new UtilsModule(this);
         

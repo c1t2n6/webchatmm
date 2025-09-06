@@ -52,6 +52,7 @@ class Room(Base):
     start_time = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     end_time = Column(DateTime, nullable=True)
     like_responses = Column(Text)  # JSON string: {"user1": "yes", "user2": "no"}
+    keep_active_responses = Column(Text)  # JSON string: {"user1": "yes", "user2": "no"} for keep active responses
     reveal_level = Column(Integer, default=0)  # 0: blur, 1: semi, 2: full
     keep_active = Column(Boolean, default=False)
     last_message_time = Column(DateTime, default=lambda: datetime.now(timezone.utc))

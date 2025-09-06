@@ -93,7 +93,7 @@ class ChatModule {
                 // Kết nối vào room
                 if (this.app.currentUser && this.app.currentUser.status.toLowerCase() === 'connected') {
                     this.app.currentRoom = { id: roomId };
-                    this.app.showChatRoom();
+                    this.showChatRoomWithSync();
                     this.connectChatWebSocket(roomId);
                 }
             } else {
@@ -164,7 +164,7 @@ class ChatModule {
                 (searching && !searching.classList.contains('hidden'))) {
                 console.log('🔍 Chat - User is in waiting/searching, redirecting to chat room...');
                 this.app.currentRoom = { id: this.app.currentUser.current_room_id };
-                this.app.showChatRoom();
+                this.showChatRoomWithSync();
             }
             
             // Load chat history trước khi kết nối WebSocket
@@ -205,7 +205,7 @@ class ChatModule {
                         this.app.currentRoom = { id: roomData.room_id };
                         
                         // Chuyển về chat room
-                        this.app.showChatRoom();
+                        this.showChatRoomWithSync();
                         
                         // Load chat history trước khi kết nối WebSocket
                         await this.loadChatHistory(roomData.room_id);
@@ -318,7 +318,7 @@ class ChatModule {
         if (this.app.currentUser && this.app.currentUser.status.toLowerCase() === 'connected' && this.app.currentUser.current_room_id) {
             console.log('User already connected to room, redirecting to chat...');
             this.app.currentRoom = { id: this.app.currentUser.current_room_id };
-            this.app.showChatRoom();
+            this.showChatRoomWithSync();
             this.connectChatWebSocket(this.app.currentUser.current_room_id);
             return;
         }
@@ -416,6 +416,7 @@ class ChatModule {
                 break;
             case 'like_prompt':
                 console.log('🔍 Chat - Handling like_prompt');
+                this.hideCountdownTimer(); // Ẩn countdown khi hiển thị like modal
                 this.app.showLikeModal();
                 break;
             case 'image_reveal':
@@ -433,6 +434,18 @@ class ChatModule {
             case 'status_update':
                 console.log('🔍 Chat - Handling status_update');
                 this.handleStatusUpdate(data);
+                break;
+            case 'room_kept':
+                console.log('🔍 Chat - Handling room_kept');
+                this.hideCountdownTimer(); // Ẩn countdown khi cả 2 user đã giữ hoạt động
+                break;
+            case 'countdown_start':
+                console.log('🔍 Chat - Handling countdown_start');
+                this.handleCountdownStart(data);
+                break;
+            case 'countdown_cancel':
+                console.log('🔍 Chat - Handling countdown_cancel');
+                this.hideCountdownTimer(); // Ẩn countdown khi bị hủy
                 break;
             default:
                 console.log('🔍 Chat - Unknown message type:', data.type);
@@ -468,19 +481,278 @@ class ChatModule {
         this.roomEnded = false;
         console.log('🔍 Chat - Room ended flag reset for new match');
         
-        this.app.showChatRoom();
+        // ✅ THÊM: Clear sync timeout khi bắt đầu room mới
+        if (this.syncTimeout) {
+            clearTimeout(this.syncTimeout);
+            this.syncTimeout = null;
+        }
+        
+        this.showChatRoomWithSync();
         
         // Load chat history trước khi kết nối WebSocket
         await this.loadChatHistory(this.app.currentRoom.id);
         
         this.connectChatWebSocket(this.app.currentRoom.id);
         
-        // ✅ SỬA: Sử dụng backend-driven timer thay vì frontend timer
-        // Backend sẽ gửi like_prompt message sau 5 phút
-        console.log('🔍 Chat - Backend will handle like modal timer');
+        // ✅ THÊM: Bắt đầu countdown flow sau khi match
+        if (this.app.simpleCountdownModule) {
+            // Đợi một chút để đảm bảo room đã sẵn sàng
+            setTimeout(() => {
+                this.app.simpleCountdownModule.startCountdown(this.app.currentRoom.id);
+            }, 1000); // 1 giây sau khi match
+        }
         
-        // Gửi request để backend lên lịch like prompt
-        this.scheduleBackendLikePrompt();
+        // ✅ THÊM: Sync countdown status khi vào room
+        this.syncCountdownStatus();
+        
+        // ✅ TẮT: Hệ thống cũ - không gọi scheduleBackendLikePrompt nữa
+        // this.scheduleBackendLikePrompt(); // Commented out - using new system
+        
+        // ✅ SỬA: Sử dụng backend-driven timer thay vì frontend timer
+        // Backend sẽ gửi countdown_start message và like_prompt message
+        console.log('🔍 Chat - Backend will handle countdown and like modal timer');
+        
+        // ✅ REMOVED: Old backend like prompt scheduling - replaced by countdown notification system
+    }
+    
+    // ✅ THÊM: Method helper để trigger countdown khi vào room
+    async triggerCountdownForRoom(roomId) {
+        console.log('🔍 Chat - triggerCountdownForRoom called for room:', roomId);
+        
+        // Chỉ trigger countdown nếu chưa có countdown active
+        const countdownEl = document.getElementById('like-countdown');
+        if (!countdownEl) {
+            console.log('🔍 Chat - No active countdown, requesting from backend');
+            // ✅ REMOVED: Old backend like prompt scheduling - replaced by countdown notification system
+        } else {
+            console.log('🔍 Chat - Countdown already active, skipping');
+        }
+    }
+
+    // ✅ THÊM: Xử lý countdown start từ backend
+    handleCountdownStart(data) {
+        console.log('🔍 Chat - handleCountdownStart called with:', data);
+        const duration = data.duration || 15;
+        
+        // Kiểm tra xem đã có countdown active chưa
+        const existingCountdown = document.getElementById('like-countdown');
+        if (existingCountdown) {
+            console.log('🔍 Chat - Countdown already exists, updating duration');
+            // Cập nhật duration nếu cần
+            const timeElement = existingCountdown.querySelector('.countdown-time');
+            if (timeElement) {
+                timeElement.textContent = `${duration}s`;
+            }
+        } else {
+            console.log('🔍 Chat - Creating new countdown with duration:', duration);
+            this.showCountdownTimer(duration);
+        }
+    }
+
+    handleLikePrompt(data) {
+        console.log('🔍 Chat - handleLikePrompt called with:', data);
+        // Ẩn countdown timer trước khi hiển thị like modal
+        this.hideCountdownTimer();
+        // Lưu room_id từ data để sử dụng trong handleLikeResponse
+        this.currentRoomId = data.room_id;
+        // Hiển thị like modal
+        if (this.app && typeof this.app.showLikeModal === 'function') {
+            console.log('🔍 Chat - Calling app.showLikeModal()');
+            this.app.showLikeModal();
+        } else {
+            console.error('🔍 Chat - app.showLikeModal not available, app:', this.app);
+            // Fallback: tạo like modal đơn giản
+            this.createFallbackLikeModal(data);
+        }
+    }
+    
+    // ✅ THÊM: Tạo fallback like modal đơn giản
+    createFallbackLikeModal(data) {
+        console.log('🔍 Chat - Creating fallback like modal');
+        
+        // Sử dụng thông tin từ backend nếu có
+        const message = data?.message || "Bạn có muốn tiếp tục cuộc trò chuyện với người này không?";
+        const buttons = data?.buttons || {
+            yes: "✅ Có - Tôi muốn tiếp tục",
+            no: "❌ Không - Kết thúc cuộc trò chuyện"
+        };
+        
+        // Tạo modal đơn giản
+        const modal = document.createElement('div');
+        modal.id = 'fallback-like-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        `;
+        
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 90%;
+        `;
+        
+        modalContent.innerHTML = `
+            <h3 style="margin-bottom: 20px; color: #333;">Tiếp tục cuộc trò chuyện</h3>
+            <p style="margin-bottom: 20px; color: #666;">${message}</p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="like-btn" style="
+                    background: #4CAF50;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 16px;
+                ">${buttons.yes}</button>
+                <button id="dislike-btn" style="
+                    background: #f44336;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 16px;
+                ">${buttons.no}</button>
+            </div>
+            ${data?.timeout_seconds ? `<div style="margin-top: 15px; font-size: 14px; color: #666;">Bạn có ${data.timeout_seconds} giây để quyết định</div>` : ''}
+        `;
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        // Thêm event listeners
+        document.getElementById('like-btn').addEventListener('click', () => {
+            console.log('🔍 Chat - User clicked like');
+            this.handleLikeResponse(true);
+            this.closeFallbackModal();
+        });
+        
+        document.getElementById('dislike-btn').addEventListener('click', () => {
+            console.log('🔍 Chat - User clicked dislike');
+            this.handleLikeResponse(false);
+            this.closeFallbackModal();
+        });
+        
+        // Đóng modal khi click outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeFallbackModal();
+            }
+        });
+    }
+    
+    closeFallbackModal() {
+        const modal = document.getElementById('fallback-like-modal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+    
+    async handleLikeResponse(isLike) {
+        console.log('🔍 Chat - Handling like response:', isLike);
+        
+        // Sử dụng currentRoomId từ WebSocket message
+        const roomId = this.currentRoomId || (this.app && this.app.currentRoom && this.app.currentRoom.id);
+        if (!roomId) {
+            console.error('🔍 Chat - No room ID available for like response');
+            return;
+        }
+        
+        console.log('🔍 Chat - Sending like response for room:', roomId);
+        
+        // Gọi API trực tiếp thay vì WebSocket
+        try {
+            const response = await fetch(`/chat/like/${roomId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}` 
+                },
+                body: JSON.stringify({ response: isLike ? "yes" : "no" })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('🔍 Chat - Like response sent successfully:', result);
+            } else {
+                console.error('🔍 Chat - Failed to send like response:', response.status, await response.text());
+            }
+        } catch (error) {
+            console.error('🔍 Chat - Error sending like response:', error);
+        }
+    }
+    
+    // ✅ THÊM: Hiển thị đếm ngược với duration từ backend
+    showCountdownTimer(duration = 15) {
+        console.log('🔍 Chat - Showing countdown timer with duration:', duration);
+        
+        // Kiểm tra xem đã có countdown chưa
+        let countdownEl = document.getElementById('like-countdown');
+        if (countdownEl) {
+            console.log('🔍 Chat - Countdown already exists, updating duration');
+            // Cập nhật duration nếu đã có countdown
+            const numberEl = document.getElementById('countdown-number');
+            if (numberEl) {
+                numberEl.textContent = duration;
+            }
+            return;
+        }
+        
+        // Tạo countdown element
+        countdownEl = document.createElement('div');
+        countdownEl.id = 'like-countdown';
+        countdownEl.className = 'fixed top-4 right-4 bg-blue-500 text-white px-3 py-2 rounded-lg shadow-lg text-sm font-medium z-50';
+        countdownEl.innerHTML = `⏰ Đánh giá sau: <span id="countdown-number">${duration}</span>s`;
+        document.body.appendChild(countdownEl);
+        
+        console.log('🔍 Chat - Countdown element created and added to DOM');
+        
+        // Bắt đầu đếm ngược
+        let timeLeft = duration;
+        const updateCountdown = () => {
+            const numberEl = document.getElementById('countdown-number');
+            if (numberEl) {
+                numberEl.textContent = timeLeft;
+                timeLeft--;
+                
+                if (timeLeft >= 0) {
+                    this.timerManager.setTimer('countdown', updateCountdown, 1000);
+                } else {
+                    this.hideCountdownTimer();
+                }
+            }
+        };
+        
+        // Bắt đầu đếm ngược
+        updateCountdown();
+    }
+    
+    // ✅ THÊM: Ẩn đếm ngược
+    hideCountdownTimer() {
+        console.log('🔍 Chat - Hiding countdown timer');
+        
+        const countdownEl = document.getElementById('like-countdown');
+        if (countdownEl) {
+            countdownEl.remove();
+        }
+        
+        // Clear countdown timer
+        if (this.timerManager) {
+            this.timerManager.clearTimer('countdown');
+        }
     }
 
     // ✅ THÊM: Method helper để reset chat state một cách an toàn
@@ -492,6 +764,9 @@ class ChatModule {
             console.log('🔍 Chat - Clearing all timers...');
             this.timerManager.clearAll();
         }
+        
+        // ✅ THÊM: Ẩn countdown timer
+        this.hideCountdownTimer();
         
         // Đóng WebSocket connections
         if (this.chatWebSocket) {
@@ -513,53 +788,111 @@ class ChatModule {
         this.roomEnded = true;
         console.log('🔍 Chat - Room ended flag set to true');
         
+        // ✅ THÊM: Clear sync timeout khi room ended
+        if (this.syncTimeout) {
+            clearTimeout(this.syncTimeout);
+            this.syncTimeout = null;
+        }
+        
         // Chuyển về waiting room
         this.app.showWaitingRoom();
         
         console.log('🔍 Chat - Chat state reset completed');
     }
     
-    // ✅ THÊM: Method để gửi request backend lên lịch like prompt
-    async scheduleBackendLikePrompt() {
+    // ✅ THÊM: Method để sync countdown hiện tại với backend
+    async syncCountdownWithBackend(roomId) {
+        console.log('🔍 Chat - Syncing countdown with backend for room:', roomId);
+        
         try {
-            if (!this.app.currentRoom?.id) {
-                console.log('🔍 Chat - No current room, skipping backend like prompt scheduling');
-                return;
-            }
-            
-            const response = await fetch(`/chat/schedule-like-prompt/${this.app.currentRoom.id}`, {
-                method: 'POST',
+            // Gửi request để lấy thông tin countdown hiện tại từ backend
+            const response = await fetch(`/simple-countdown/status/${roomId}`, {
+                method: 'GET',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}` 
-                },
-                body: JSON.stringify({
-                    delay_minutes: 5,
-                    is_second_round: false
-                })
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                    'Content-Type': 'application/json'
+                }
             });
             
             if (response.ok) {
-                console.log('🔍 Chat - Backend like prompt scheduled successfully');
+                const data = await response.json();
+                console.log('🔍 Chat - Countdown status from backend:', data);
+                
+                // Sử dụng API mới - kiểm tra phase và remaining time
+                if (data.phase === 'countdown' && data.countdown_remaining > 0) {
+                    console.log('🔍 Chat - Backend has active countdown, syncing with remaining time:', data.countdown_remaining);
+                    if (this.app.simpleCountdownModule) {
+                        this.app.simpleCountdownModule.syncWithBackend(roomId);
+                    }
+                } else if (data.phase === 'notification' && data.notification_remaining > 0) {
+                    console.log('🔍 Chat - Backend has active notification, syncing with remaining time:', data.notification_remaining);
+                    if (this.app.simpleCountdownModule) {
+                        this.app.simpleCountdownModule.syncWithBackend(roomId);
+                    }
+                } else {
+                    console.log('🔍 Chat - No active countdown/notification on backend');
+                    // Ẩn countdown/notification nếu có
+                    if (this.app.simpleCountdownModule) {
+                        this.app.simpleCountdownModule.hideCountdown();
+                        this.app.simpleCountdownModule.hideNotification();
+                    }
+                }
             } else {
-                console.warn('🔍 Chat - Failed to schedule backend like prompt, using fallback');
-                // Fallback: sử dụng frontend timer
-                if (this.timerManager) {
-                    this.timerManager.setTimer('like_modal_5min', () => {
-                        this.app.showLikeModal();
-                    }, 5 * 60 * 1000);
+                console.log('🔍 Chat - Failed to get countdown status from backend, checking local countdown');
+                // Nếu không lấy được từ backend, kiểm tra local countdown
+                const countdownEl = document.getElementById('like-countdown');
+                if (!countdownEl) {
+                    console.log('🔍 Chat - No local countdown, requesting new one from backend');
+                    await this.triggerCountdownForRoom(roomId);
                 }
             }
         } catch (error) {
-            console.error('🔍 Chat - Error scheduling backend like prompt:', error);
-            // Fallback: sử dụng frontend timer
-            if (this.timerManager) {
-                this.timerManager.setTimer('like_modal_5min', () => {
-                    this.app.showLikeModal();
-                }, 5 * 60 * 1000);
+            console.error('🔍 Chat - Error syncing countdown with backend:', error);
+            // Nếu có lỗi, kiểm tra local countdown
+            const countdownEl = document.getElementById('like-countdown');
+            if (!countdownEl) {
+                console.log('🔍 Chat - No local countdown, requesting new one from backend');
+                await this.triggerCountdownForRoom(roomId);
             }
         }
     }
+    
+    // ✅ THÊM: Sync countdown status với backend
+    async syncCountdownStatus() {
+        try {
+            if (!this.app.currentRoom?.id) {
+                console.log('🔍 Chat - No current room, skipping countdown sync');
+                return;
+            }
+            
+            // ✅ THÊM: Kiểm tra room ended flag trước khi sync
+            if (this.roomEnded) {
+                console.log('🔍 Chat - Room already ended locally, skipping countdown sync');
+                return;
+            }
+            
+            // ✅ Đơn giản hóa: Chỉ sync một lần khi vào room
+            if (this.app.simpleCountdownModule) {
+                console.log('🔍 Chat - Syncing countdown status for room:', this.app.currentRoom.id);
+                this.app.simpleCountdownModule.syncWithBackend(this.app.currentRoom.id);
+            }
+            
+        } catch (error) {
+            console.error('🔍 Chat - Error syncing countdown status:', error);
+        }
+    }
+    
+    // ✅ THÊM: Wrapper method để show chat room và sync countdown
+    async showChatRoomWithSync() {
+        this.app.showChatRoom();
+        // Đợi một chút để DOM được render
+        setTimeout(() => {
+            this.syncCountdownStatus();
+        }, 500);
+    }
+
+    // ✅ THÊM: Method để gửi request backend lên lịch like prompt
+    // ✅ REMOVED: Old backend like prompt scheduling method - replaced by countdown notification system
 
     handleRoomEndedByUser(data) {
         console.log('🔍 Chat - Room ended by user notification received:', data);
@@ -673,6 +1006,12 @@ class ChatModule {
             
             // ✅ Setup typing listeners sau khi WebSocket kết nối
             this.setupTypingListeners();
+            
+            // ✅ KIỂM TRA: Luôn sync với backend trước khi quyết định
+            console.log('🔍 Chat - Checking countdown status with backend...');
+            console.log('🔍 Chat - Current countdown element exists:', !!document.getElementById('like-countdown'));
+            await this.syncCountdownWithBackend(roomId);
+            console.log('🔍 Chat - After sync, countdown element exists:', !!document.getElementById('like-countdown'));
         };
 
         chatWs.onmessage = (event) => {
@@ -716,11 +1055,30 @@ class ChatModule {
                 console.log('🔍 Chat - Room ended by user notification received via chat WebSocket:', data);
                 this.handleRoomEndedByUser(data);
                 break;
+            case 'room_ended':
+                console.log('🔍 Chat - Room ended notification received via chat WebSocket:', data);
+                // Chuyển cho countdown notification module mới xử lý
+                if (this.app.simpleCountdownModule) {
+                    this.app.simpleCountdownModule.handleWebSocketMessage(JSON.stringify(data));
+                }
+                // Fallback cho xử lý cũ
+                this.handleRoomEndedByUser(data);
+                break;
             case 'connection':
                 console.log('🔍 Chat - Connection message received:', data);
                 // Xử lý thông báo kết nối thành công
                 if (data.message === 'Connected to chat room') {
                     console.log('🔍 Chat - Successfully connected to chat room:', data.room_id);
+                }
+                break;
+            case 'countdown_start':
+            case 'countdown_update':
+            case 'notification_show':
+            case 'notification_update':
+            case 'room_kept':
+                // Chuyển notification messages cho countdown notification module mới
+                if (this.app.simpleCountdownModule) {
+                    this.app.simpleCountdownModule.handleWebSocketMessage(JSON.stringify(data));
                 }
                 break;
             default:
@@ -912,16 +1270,20 @@ class ChatModule {
         if (!this.app.currentRoom) return;
 
         try {
-            await fetch(`/chat/keep/${this.app.currentRoom.id}`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
-            });
+            // Sử dụng simple countdown system để giữ hoạt động
+            if (this.app.simpleCountdownModule) {
+                // Gửi response "yes" để giữ room
+                await this.app.simpleCountdownModule.handleResponse(true);
+            }
             
             const keepActiveBtn = document.getElementById('keepActive');
             if (keepActiveBtn) {
                 keepActiveBtn.textContent = 'Đã giữ hoạt động';
                 keepActiveBtn.disabled = true;
             }
+            
+            // Ẩn countdown khi user giữ hoạt động
+            this.hideCountdownTimer();
         } catch (error) {
             console.error('Keep active error:', error);
         }

@@ -8,7 +8,7 @@ import structlog
 
 from .config import settings
 from .database import create_tables
-from .api import auth, user, chat, admin
+from .api import auth, user, chat, admin, simple_countdown
 from .routes import router as main_router
 from .websocket_routes import router as websocket_router
 from .websocket_manager import manager
@@ -80,16 +80,16 @@ def create_app() -> FastAPI:
     # Mount static files
     app.mount("/static", StaticFiles(directory="static"), name="static")
     
-    # Debug routes
-    @app.get("/debug_chat_final.html", response_class=HTMLResponse)
-    async def debug_chat_final():
-        with open("templates/debug_chat_final.html", "r", encoding="utf-8") as f:
-            return HTMLResponse(content=f.read())
+    # Health check
+    @app.get("/health")
+    async def health_check():
+        return {"status": "healthy", "service": "mapmo.vn"}
     
     # Include routers
     app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
     app.include_router(user.router, prefix="/user", tags=["User Management"])
     app.include_router(chat.router, prefix="/chat", tags=["Chat"])
+    app.include_router(simple_countdown.router, prefix="/simple-countdown", tags=["Simple Countdown"])
     app.include_router(admin.router, prefix="/admin", tags=["Admin"])
     app.include_router(main_router, tags=["Main"])
     app.include_router(websocket_router, tags=["WebSocket"])

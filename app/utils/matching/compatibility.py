@@ -70,7 +70,7 @@ class CompatibilityChecker:
     @staticmethod
     def is_profile_complete(user: User) -> bool:
         """Check if user profile is complete for matching"""
-        return (
+        return bool(
             user.nickname and 
             user.dob and 
             user.gender and 

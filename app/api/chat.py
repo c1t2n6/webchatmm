@@ -228,13 +228,13 @@ async def cancel_search(
         )
 
 @router.post("/like/{room_id}")
-async def like_response(
+async def keep_active_response(
     room_id: int,
     like_data: ChatLike,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Send like response for chat partner"""
+    """Send keep active response for chat room"""
     
     try:
         # Validate room access
@@ -245,34 +245,64 @@ async def like_response(
                 detail=error_msg
             )
         
-        # Validate like response
+        # Validate keep active response
         if like_data.response not in ["yes", "no"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Phản hồi không hợp lệ"
             )
         
-        # Parse existing like responses
-        like_responses = json.loads(room.like_responses) if room.like_responses else {}
+        # Parse existing keep active responses
+        keep_active_responses = json.loads(room.keep_active_responses) if room.keep_active_responses else {}
         
         # Add current user's response
         user_key = "user1" if current_user.id == room.user1_id else "user2"
-        like_responses[user_key] = like_data.response
+        keep_active_responses[user_key] = like_data.response
         
-        room.like_responses = json.dumps(like_responses)
+        room.keep_active_responses = json.dumps(keep_active_responses)
         
-        # Check if both users have responded
-        if len(like_responses) == 2:
-            user1_response = like_responses.get("user1")
-            user2_response = like_responses.get("user2")
+        # Hủy auto-end timer vì đã có user phản hồi
+        from app.services.countdown_notification_service import countdown_notification_service
+        countdown_notification_service.cancel_all_timers(room_id)
+        
+        # Check if current user said "no" - end room immediately
+        if like_data.response == "no":
+            room.end_time = datetime.now(timezone.utc)
+            logger.info(f"Room {room_id} ended due to user {current_user.id} not wanting to continue")
             
-            if user1_response == "yes" and user2_response == "yes":
-                # Both like each other - increase reveal level
-                room.reveal_level = min(room.reveal_level + 1, 2)
-            elif user1_response == "no" or user2_response == "no":
-                # One or both don't like - schedule room end
-                # This will be handled by a background task
-                pass
+            # Notify users via WebSocket
+            from app.websocket_manager import manager
+            await manager.broadcast_to_room(
+                json.dumps({
+                    "type": "room_ended",
+                    "room_id": room_id,
+                    "reason": "user_dislike",
+                    "message": "Phòng chat đã kết thúc do một trong hai người không muốn tiếp tục"
+                }),
+                room_id
+            )
+        else:
+            # User said "yes" - check if both users want to continue
+            if len(keep_active_responses) == 2:
+                user1_response = keep_active_responses.get("user1")
+                user2_response = keep_active_responses.get("user2")
+                
+                if user1_response == "yes" and user2_response == "yes":
+                    # Both want to continue - set keep_active to true
+                    room.keep_active = True
+                    logger.info(f"Room {room_id} - both users want to continue, setting keep_active=True")
+                    
+                    # Notify users via WebSocket
+                    from app.websocket_manager import manager
+                    await manager.broadcast_to_room(
+                        json.dumps({
+                            "type": "room_kept",
+                            "room_id": room_id,
+                            "message": "Cả 2 user đã đồng ý tiếp tục cuộc trò chuyện",
+                            "timestamp": datetime.now(timezone.utc).isoformat()
+                        }),
+                        room_id
+                    )
         
         db.commit()
         
@@ -289,54 +319,20 @@ async def like_response(
 
 
 
-@router.post("/schedule-like-prompt/{room_id}")
-async def schedule_like_prompt(
-    room_id: int,
-    prompt_data: dict,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Schedule like prompt timer for a room"""
-    
-    try:
-        # Validate room access
-        has_access, room, error_msg = RoomManager.validate_user_room_access(current_user, room_id, db)
-        if not has_access:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=error_msg
-            )
-        
-        # Import like timer service
-        from app.services.like_timer_service import like_timer_service
-        
-        # Schedule like prompt
-        delay_minutes = prompt_data.get("delay_minutes", 5)
-        is_second_round = prompt_data.get("is_second_round", False)
-        
-        success = await like_timer_service.schedule_like_prompt(room_id, is_second_round)
-        
-        if success:
-            return {
-                "message": "Đã lên lịch hiển thị like modal",
-                "room_id": room_id,
-                "delay_minutes": delay_minutes,
-                "is_second_round": is_second_round
-            }
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Không thể lên lịch like prompt"
-            )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Lỗi lên lịch like prompt: {str(e)}"
-        )
+# @router.post("/schedule-like-prompt/{room_id}")  # DISABLED - Using new countdown notification system
+# async def schedule_like_prompt(
+#     room_id: int,
+#     prompt_data: dict = None,
+#     current_user: User = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """Schedule like prompt timer for a room - DISABLED"""
+#     raise HTTPException(
+#         status_code=status.HTTP_410_GONE,
+#         detail="API endpoint disabled - using new countdown notification system"
+#     )
+
+# ✅ REMOVED: Old countdown API endpoints - moved to countdown_notification API
 
 @router.post("/keep/{room_id}")
 async def keep_session(
@@ -358,6 +354,17 @@ async def keep_session(
         
         room.keep_active = keep_data.keep_active
         db.commit()
+        
+        # Kiểm tra xem cả 2 user đã giữ hoạt động chưa
+        if room.keep_active:
+            # Gửi WebSocket message để ẩn countdown
+            from app.websocket_manager import manager
+            await manager.broadcast_to_room(room_id, {
+                "type": "room_kept",
+                "message": "Cả 2 user đã đồng ý giữ phòng",
+                "room_id": room_id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
         
         return {"message": "Đã cập nhật trạng thái giữ phiên"}
         

@@ -1,8 +1,17 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from .websocket_manager import manager
+from .api import auth, user, chat, admin, simple_countdown
 
 router = APIRouter()
+
+# Include API routers
+router.include_router(auth.router, prefix="/auth", tags=["auth"])
+router.include_router(user.router, prefix="/user", tags=["user"])
+router.include_router(chat.router, prefix="/chat", tags=["chat"])
+router.include_router(admin.router, prefix="/admin", tags=["admin"])
+# router.include_router(notification.router, prefix="/notification", tags=["notification"]) # Removed - replaced by simple_countdown
+router.include_router(simple_countdown.router, prefix="/simple-countdown", tags=["simple-countdown"])
 
 # Debug endpoint for room connections
 @router.get("/debug/room/{room_id}")

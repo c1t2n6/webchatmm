@@ -125,7 +125,10 @@ class WebSocketHandler:
                 return True
             
             # Add to room
+            logger.info(f"Calling manager.add_to_room({self.room_id}, websocket, {self.user_id})")
             success = await manager.add_to_room(self.room_id, self.websocket, self.user_id)
+            logger.info(f"manager.add_to_room returned: {success}")
+            
             if not success:
                 logger.error(f"Failed to add user {self.user_id} to room {self.room_id}")
                 return False
@@ -138,6 +141,8 @@ class WebSocketHandler:
             
         except Exception as e:
             logger.error(f"Error adding user {self.user_id} to room {self.room_id}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
 
     async def send_welcome_message(self):
@@ -396,9 +401,12 @@ async def handle_chat_websocket(websocket: WebSocket, room_id: int):
             return
         
         # Add user to room
+        logger.info(f"Attempting to add user {handler.user_id} to room {room_id}")
         if not await handler.add_to_room():
+            logger.error(f"Failed to add user {handler.user_id} to room {room_id}")
             await websocket.close(code=4000, reason="Failed to add to room")
             return
+        logger.info(f"Successfully added user {handler.user_id} to room {room_id}")
         
         # Send welcome message
         await handler.send_welcome_message()

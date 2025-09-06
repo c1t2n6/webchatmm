@@ -17,7 +17,6 @@
 - **Frontend**: HTML + Tailwind CSS + Vanilla JavaScript
 - **Real-time**: WebSocket native
 - **Authentication**: JWT + bcrypt
-- **Image Processing**: Pillow (PIL)
 - **Logging**: structlog
 
 ## 📋 Yêu Cầu Hệ Thống
@@ -150,12 +149,20 @@ uvicorn app.main:app --reload
 
 ### Chat Session Flow
 1. **Match** → Tạo room, cả 2 = CONNECTED
-2. **5 phút** → Hiện modal "Bạn có thích người ấy không?"
-3. **Like Response**:
-   - Cả 2 "Có" → Reveal ảnh dần, mở voice
-   - 1 "Không" → +5 phút, hỏi lại
-   - Vẫn không đồng thuận → Auto end
+2. **5 phút** → Hiện modal "Bạn có muốn tiếp tục cuộc trò chuyện với người này không?"
+3. **Keep Active Response**:
+   - **Nút "Có"** → Giữ cuộc trò chuyện (keep_active = true)
+   - **Nút "Không"** → Kết thúc cuộc trò chuyện ngay lập tức
+   - **Cả 2 "Có"** → Reveal ảnh dần, mở voice
+   - **Timeout 30s** → Auto end nếu cả 2 không đều giữ cuộc trò chuyện
 4. **Inactivity**: 15 phút không tin nhắn → auto end (trừ khi Keep)
+
+### Notification System Logic
+- **Targeted Notification**: Chỉ gửi cho user chưa giữ cuộc trò chuyện
+- **Button Meanings**:
+  - ✅ **"Có - Tôi muốn tiếp tục"** = Giữ cuộc trò chuyện
+  - ❌ **"Không - Kết thúc cuộc trò chuyện"** = End room ngay lập tức
+- **Auto-end Condition**: Kết thúc phòng nếu cả 2 không đều giữ cuộc trò chuyện sau 30s
 
 ### Image Reveal System
 - **Level 0**: Blur (Gaussian 20px) - Mặc định
@@ -178,7 +185,7 @@ python scripts/fake_users.py --num=100
 
 ### Render.com (Recommended)
 1. Connect GitHub repository
-2. Build Command: `pip install -r requirements.txt`
+2. Build Command: `bash build.sh`
 3. Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 4. Environment Variables: Copy từ .env
 
@@ -190,7 +197,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ## 📊 Monitoring
 
 - **Logs**: `logs/app.log` (structlog)
-- **Health Check**: `GET /health`
+- **Health Check**: `GET /health`.
 - **Admin Dashboard**: `/admin/dashboard`
 
 ## 🔮 Future Extensions
