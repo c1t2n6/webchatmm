@@ -3,16 +3,16 @@ from typing import Optional
 
 class Settings:
     def __init__(self):
-        # Database
+        # Database - Railway.app compatible
         self.database_url = os.getenv("DATABASE_URL", "sqlite:///./app.db")
         
-        # JWT
-        self.jwt_secret_key = os.getenv("JWT_SECRET_KEY", "your-super-secret-jwt-key-here")
+        # JWT - Railway.app environment variables
+        self.jwt_secret_key = os.getenv("JWT_SECRET_KEY", "railway-super-secret-jwt-key-2024")
         self.jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
         self.jwt_access_token_expire_minutes = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
         
         # Security
-        self.secret_key = os.getenv("SECRET_KEY", "your-super-secret-key-here")
+        self.secret_key = os.getenv("SECRET_KEY", "railway-super-secret-key-2024")
         self.bcrypt_rounds = int(os.getenv("BCRYPT_ROUNDS", "12"))
         
         # Feature Flags
@@ -25,17 +25,23 @@ class Settings:
         self.rate_limit_upload = int(os.getenv("RATE_LIMIT_UPLOAD", "10"))
         self.rate_limit_login = int(os.getenv("RATE_LIMIT_LOGIN", "3"))
         
-        # File Upload
+        # File Upload - Railway.app compatible
         self.max_file_size = int(os.getenv("MAX_FILE_SIZE", "5242880"))  # 5MB
-        self.upload_dir = os.getenv("UPLOAD_DIR", "./static/uploads")
+        self.upload_dir = os.getenv("UPLOAD_DIR", "/tmp/uploads")
         
-        # Logging
-        self.log_level = os.getenv("LOG_LEVEL", "DEBUG")
-        self.log_file = os.getenv("LOG_FILE", "./logs/app.log")
+        # Logging - Railway.app compatible
+        self.log_level = os.getenv("LOG_LEVEL", "INFO")
+        self.log_file = os.getenv("LOG_FILE", "/tmp/app.log")
         
-        # Admin
-        self.admin_username = os.getenv("ADMIN_USERNAME", "Admin")
-        self.admin_password = os.getenv("ADMIN_PASSWORD", "Passwordnaoday123")
+        # Admin - Railway.app environment
+        self.admin_username = os.getenv("ADMIN_USERNAME", "admin")
+        self.admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
+        
+        # Railway.app specific
+        self.port = int(os.getenv("PORT", "8000"))
+        self.host = os.getenv("HOST", "0.0.0.0")
+        self.environment = os.getenv("ENVIRONMENT", "production")
+        self.debug = os.getenv("DEBUG", "false").lower() == "true"
         
         # Future Extensions
         self.sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
@@ -45,6 +51,12 @@ class Settings:
 # Global settings instance
 settings = Settings()
 
-# Ensure upload directory exists
-os.makedirs(settings.upload_dir, exist_ok=True)
-os.makedirs(os.path.dirname(settings.log_file), exist_ok=True)
+# Ensure upload directory exists - Railway.app compatible
+try:
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    os.makedirs(os.path.dirname(settings.log_file), exist_ok=True)
+except OSError:
+    # Railway.app may have read-only filesystem, use /tmp
+    settings.upload_dir = "/tmp/uploads"
+    settings.log_file = "/tmp/app.log"
+    os.makedirs(settings.upload_dir, exist_ok=True)

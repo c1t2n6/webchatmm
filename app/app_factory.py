@@ -13,24 +13,35 @@ from .routes import router as main_router
 from .websocket_routes import router as websocket_router
 from .websocket_manager import manager
 
-# Setup logging
+# Setup logging - Railway.app compatible
 def setup_logging():
-    structlog.configure(
-        processors=[
-            structlog.stdlib.filter_by_level,
-            structlog.stdlib.add_logger_name,
-            structlog.stdlib.add_log_level,
-            structlog.stdlib.PositionalArgumentsFormatter(),
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer()
-        ],
-        context_class=dict,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
+    """Setup logging configuration for Railway.app"""
+    try:
+        structlog.configure(
+            processors=[
+                structlog.stdlib.filter_by_level,
+                structlog.stdlib.add_logger_name,
+                structlog.stdlib.add_log_level,
+                structlog.stdlib.PositionalArgumentsFormatter(),
+                structlog.processors.TimeStamper(fmt="iso"),
+                structlog.processors.StackInfoRenderer(),
+                structlog.processors.format_exc_info,
+                structlog.processors.UnicodeDecoder(),
+                structlog.processors.JSONRenderer()
+            ],
+            context_class=dict,
+            logger_factory=structlog.stdlib.LoggerFactory(),
+            cache_logger_on_first_use=True,
+        )
+        print("✅ Logging configured successfully")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not configure structured logging: {e}")
+        # Railway.app fallback: use basic logging
+        import logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -77,8 +88,19 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     
-    # Mount static files
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+    # Mount static files - Railway.app compatible
+    try:
+        app.mount("/static", StaticFiles(directory="static"), name="static")
+    except Exception as e:
+        logger.warning(f"Could not mount static files: {e}")
+        # Railway.app fallback: serve static files from app directory
+        try:
+            import os
+            static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+            if os.path.exists(static_dir):
+                app.mount("/static", StaticFiles(directory=static_dir), name="static")
+        except Exception as e2:
+            logger.warning(f"Could not mount static files from app directory: {e2}")
     
     # Health check
     @app.get("/health")

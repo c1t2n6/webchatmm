@@ -1,4 +1,4 @@
-# 🚀 HƯỚNG DẪN DEPLOY FREE
+# 🚀 HƯỚNG DẪN DEPLOY RAILWAY.APP
 
 ## 1. RAILWAY.APP (KHUYẾN NGHỊ)
 
@@ -9,23 +9,34 @@
 
 ### Bước 2: Deploy
 1. Chọn repository `webchatmm`
-2. Railway sẽ auto-detect Python
+2. Railway sẽ auto-detect Python 3.9
 3. Click "Deploy Now"
-4. Chờ build hoàn thành
+4. Chờ build hoàn thành (khoảng 2-3 phút)
 
 ### Bước 3: Cấu hình Environment Variables
+Vào Settings → Variables và thêm:
+
 ```
-JWT_SECRET_KEY=your-secret-key-here
+JWT_SECRET_KEY=railway-super-secret-jwt-key-2024
 JWT_ALGORITHM=HS256
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
 DATABASE_URL=sqlite:///./app.db
 DEBUG=false
 ENVIRONMENT=production
+LOG_LEVEL=INFO
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin123
 ```
 
 ### Bước 4: Kiểm tra
 - Health check: `https://your-app.railway.app/health`
 - API docs: `https://your-app.railway.app/docs`
+- Main app: `https://your-app.railway.app/`
+
+### Bước 5: Cấu hình Domain (Optional)
+1. Vào Settings → Domains
+2. Thêm custom domain nếu có
+3. Cấu hình DNS records
 
 ---
 

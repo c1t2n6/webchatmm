@@ -2,11 +2,26 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from .config import settings
+import os
 
-# Create database engine
+# Railway.app database configuration
+def get_database_url():
+    """Get database URL with Railway.app compatibility"""
+    database_url = settings.database_url
+    
+    # If DATABASE_URL is not set, use SQLite for Railway.app
+    if not database_url or database_url == "sqlite:///./app.db":
+        # Railway.app compatible SQLite path
+        database_url = "sqlite:///./app.db"
+    
+    return database_url
+
+# Create database engine with Railway.app compatibility
 engine = create_engine(
-    settings.database_url,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {}
+    get_database_url(),
+    connect_args={"check_same_thread": False} if "sqlite" in get_database_url() else {},
+    pool_pre_ping=True,  # Railway.app connection pooling
+    echo=settings.debug  # Debug SQL queries in development
 )
 
 # Create SessionLocal class
@@ -25,4 +40,22 @@ def get_db():
 
 # Create all tables
 def create_tables():
-    Base.metadata.create_all(bind=engine)
+    """Create all database tables with Railway.app compatibility"""
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("✅ Database tables created successfully")
+    except Exception as e:
+        print(f"❌ Error creating database tables: {e}")
+        # Railway.app fallback: try to create tables individually
+        try:
+            from .models import User, Room, Message, Icebreaker, UserLike, UserDislike
+            User.__table__.create(engine, checkfirst=True)
+            Room.__table__.create(engine, checkfirst=True)
+            Message.__table__.create(engine, checkfirst=True)
+            Icebreaker.__table__.create(engine, checkfirst=True)
+            UserLike.__table__.create(engine, checkfirst=True)
+            UserDislike.__table__.create(engine, checkfirst=True)
+            print("✅ Database tables created individually")
+        except Exception as e2:
+            print(f"❌ Failed to create tables individually: {e2}")
+            raise e2
