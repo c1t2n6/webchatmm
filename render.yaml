@@ -3,7 +3,7 @@ services:
     name: webchat-app
     env: python
     plan: starter
-    buildCommand: pip install --upgrade pip && pip install --only-binary=:all: -r requirements.txt && python scripts/init_db.py
+    buildCommand: pip install --upgrade pip && pip install --only-binary=:all: --platform manylinux2014_x86_64 pydantic-core==2.10.1 && pip install --only-binary=:all: -r requirements.txt && python scripts/init_db.py
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHONPATH
