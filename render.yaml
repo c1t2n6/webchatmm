@@ -8,6 +8,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.5
+      - key: PYTHONPATH
+        value: .
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: JWT_ALGORITHM
