@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, validator, field_serializer
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional, List
 from datetime import date, datetime
 from enum import Enum
@@ -48,16 +48,8 @@ class UserResponse(UserBase):
     created_at: datetime
     current_room_id: Optional[int] = None
 
-    @field_serializer('dob')
-    def serialize_dob(self, value: date) -> str:
-        return value.isoformat() if value else None
-    
-    @field_serializer('created_at')
-    def serialize_created_at(self, value: datetime) -> str:
-        return value.isoformat() if value else None
-
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class UserSignupResponse(BaseModel):
     id: int
@@ -70,12 +62,8 @@ class UserSignupResponse(BaseModel):
     role: str
     created_at: datetime
 
-    @field_serializer('created_at')
-    def serialize_created_at(self, value: datetime) -> str:
-        return value.isoformat() if value else None
-
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Auth schemas
 class UserLogin(BaseModel):
@@ -105,12 +93,8 @@ class MessageResponse(BaseModel):
     timestamp: datetime
     user_id: int
 
-    @field_serializer('timestamp')
-    def serialize_timestamp(self, value: datetime) -> str:
-        return value.isoformat() if value else None
-
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class RoomResponse(BaseModel):
     id: int
@@ -122,16 +106,8 @@ class RoomResponse(BaseModel):
     keep_active: bool
     last_message_time: datetime
 
-    @field_serializer('start_time')
-    def serialize_start_time(self, value: datetime) -> str:
-        return value.isoformat() if value else None
-    
-    @field_serializer('last_message_time')
-    def serialize_last_message_time(self, value: datetime) -> str:
-        return value.isoformat() if value else None
-
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class ChatSearch(BaseModel):
     type: str = "chat"
@@ -163,12 +139,8 @@ class ReportResponse(BaseModel):
     reason: Optional[str]
     timestamp: datetime
 
-    @field_serializer('timestamp')
-    def serialize_timestamp(self, value: datetime) -> str:
-        return value.isoformat() if value else None
-
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Matching schemas
 class MatchingResponse(BaseModel):
