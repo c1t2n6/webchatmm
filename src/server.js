@@ -18,7 +18,12 @@ const WebSocketHandler = require('./services/WebSocketHandler');
 const { router: authRouter, initUserModel } = require('./routes/auth');
 const { router: chatRouter, initModels: initChatModels } = require('./routes/chat');
 const { router: userRouter, initUserModel: initUserProfileModel } = require('./routes/user');
-const { router: simpleCountdownRouter, initModels: initSimpleCountdownModels } = require('./routes/simple_countdown');
+const { 
+  router: simpleCountdownRouter, 
+  initModels: initSimpleCountdownModels,
+  handleUserDisconnect,
+  handleUserReconnect
+} = require('./routes/simple_countdown');
 
 // Import middleware
 const { generalLimiter } = require('./middleware/rateLimiter');
@@ -172,6 +177,11 @@ io.on('connection', (socket) => {
       
       if (webSocketHandler) {
         await webSocketHandler.handleChatConnection(socket, roomId);
+        
+        // ✅ THÊM: Xử lý reconnect cho countdown/notification states
+        if (socket.userId) {
+          handleUserReconnect(socket.userId);
+        }
       } else {
         socket.emit('error', { message: 'WebSocket handler not initialized' });
         socket.disconnect();
@@ -202,6 +212,11 @@ io.on('connection', (socket) => {
   // Handle disconnect
   socket.on('disconnect', (reason) => {
     console.log('🔌 WebSocket disconnected:', socket.id, 'Reason:', reason);
+    
+    // ✅ THÊM: Xử lý disconnect cho countdown/notification states
+    if (socket.userId) {
+      handleUserDisconnect(socket.userId);
+    }
   });
 });
 

@@ -82,10 +82,26 @@ export class SimpleCountdownModuleV2 {
     handleNotificationShow(data) {
         console.log('⏰ Notification show:', data);
         
-        // ✅ THÊM: Check xem user đã ấn "Giữ hoạt động" chưa
-        if (this.app && this.app.chatModule && this.app.chatModule.hasUserKeptActive()) {
-            console.log('⏰ User has already kept active, skipping notification');
-            return;
+        // ✅ SỬA: Sử dụng StateManager để check xem có nên hiển thị notification không
+        if (this.app?.keepActiveManager) {
+            const shouldShow = this.app.keepActiveManager.shouldShowNotification(
+                data.room_id, 
+                data.users_to_notify || []
+            );
+            
+            if (!shouldShow) {
+                console.log('⏰ User already kept active, skipping notification');
+                return;
+            }
+        } else {
+            // Fallback logic nếu không có StateManager
+            if (data.users_to_notify && data.users_to_notify.length > 0) {
+                const currentUserId = this.app?.currentUser?.id;
+                if (currentUserId && !data.users_to_notify.includes(currentUserId)) {
+                    console.log('⏰ User not in users_to_notify list, skipping notification');
+                    return;
+                }
+            }
         }
         
         // Đảm bảo ẩn countdown trước khi hiển thị notification
@@ -129,9 +145,9 @@ export class SimpleCountdownModuleV2 {
         this.hideCountdown();
         this.hideNotification();
         
-        // Đồng bộ trạng thái nút "Giữ hoạt động" khi cả 2 user đã đồng ý
-        if (this.app && this.app.chatModule && this.app.chatModule.updateKeepActiveButton) {
-            this.app.chatModule.updateKeepActiveButton();
+        // ✅ SỬA: Sử dụng StateManager để update button
+        if (this.app?.keepActiveManager && this.currentRoomId) {
+            this.app.keepActiveManager.updateKeepActiveButton(this.currentRoomId);
         }
         
         this.showToast(data.message, 'success');
@@ -156,9 +172,9 @@ export class SimpleCountdownModuleV2 {
         this.hideNotification();
         this.showToast(data.message, 'error');
         
-        // Reset trạng thái nút "Giữ hoạt động"
-        if (this.app && this.app.chatModule && this.app.chatModule.resetKeepActiveButton) {
-            this.app.chatModule.resetKeepActiveButton();
+        // ✅ SỬA: Sử dụng StateManager để reset button
+        if (this.app?.keepActiveManager && this.currentRoomId) {
+            this.app.keepActiveManager.resetKeepActiveButton(this.currentRoomId);
         }
         
         // Reset chat state
@@ -277,69 +293,88 @@ export class SimpleCountdownModuleV2 {
     showNotification(data) {
         console.log('⏰ showNotification called with data:', data);
         
-        // Kiểm tra xem user hiện tại có cần hiển thị notification không
-        if (data.users_to_notify && data.users_to_notify.length > 0) {
-            console.log('⏰ users_to_notify found, checking current user...');
+        // ✅ THÊM: Set currentRoomId từ app.currentRoom nếu có
+        if (this.app && this.app.currentRoom && this.app.currentRoom.id) {
+            this.currentRoomId = this.app.currentRoom.id;
+            console.log('⏰ Set currentRoomId from app.currentRoom:', this.currentRoomId);
+        }
+        
+        // ✅ SỬA: Sử dụng StateManager để check xem có nên hiển thị notification không
+        if (this.app?.keepActiveManager) {
+            const shouldShow = this.app.keepActiveManager.shouldShowNotification(
+                this.currentRoomId, 
+                data.users_to_notify || []
+            );
             
-            // Lấy current user ID từ nhiều nguồn
-            let currentUserId = null;
-            
-            // Thử lấy từ app.currentUser
-            if (this.app && this.app.currentUser && this.app.currentUser.id) {
-                currentUserId = this.app.currentUser.id;
-                console.log('⏰ Got user ID from app.currentUser:', currentUserId);
-            }
-            
-            // Thử lấy từ localStorage nếu không có
-            if (!currentUserId) {
-                const userData = localStorage.getItem('user_data');
-                if (userData) {
-                    try {
-                        const user = JSON.parse(userData);
-                        currentUserId = user.id;
-                        console.log('⏰ Got user ID from localStorage:', currentUserId);
-                    } catch (e) {
-                        console.warn('⏰ Could not parse user data from localStorage');
-                    }
-                }
-            }
-            
-            // Thử lấy từ token nếu không có
-            if (!currentUserId) {
-                const token = localStorage.getItem('access_token');
-                if (token) {
-                    try {
-                        const payload = JSON.parse(atob(token.split('.')[1]));
-                        currentUserId = payload.user_id;
-                        console.log('⏰ Got user ID from token:', currentUserId);
-                    } catch (e) {
-                        console.warn('⏰ Could not parse user ID from token');
-                    }
-                }
-            }
-            
-            console.log('⏰ Final current user ID:', currentUserId);
-            console.log('⏰ Users to notify:', data.users_to_notify);
-            
-            if (currentUserId) {
-                // Convert currentUserId to integer for comparison
-                const currentUserIdInt = parseInt(currentUserId);
-                const usersToNotifyInts = data.users_to_notify.map(id => parseInt(id));
-                
-                console.log('⏰ Current user ID (int):', currentUserIdInt);
-                console.log('⏰ Users to notify (ints):', usersToNotifyInts);
-                
-                if (!usersToNotifyInts.includes(currentUserIdInt)) {
-                    console.log('⏰ User already kept active, skipping notification display');
-                    return;
-                } else {
-                    console.log('⏰ User needs notification, showing...');
-                }
-            } else {
-                console.warn('⏰ Could not get current user ID, showing notification anyway');
+            if (!shouldShow) {
+                console.log('⏰ User already kept active, skipping notification display');
+                return;
             }
         } else {
-            console.log('⏰ No users_to_notify or empty array, showing notification for all users');
+            // Fallback logic nếu không có StateManager
+            if (data.users_to_notify && data.users_to_notify.length > 0) {
+                console.log('⏰ users_to_notify found, checking current user...');
+                
+                // Lấy current user ID từ nhiều nguồn
+                let currentUserId = null;
+                
+                // Thử lấy từ app.currentUser
+                if (this.app && this.app.currentUser && this.app.currentUser.id) {
+                    currentUserId = this.app.currentUser.id;
+                    console.log('⏰ Got user ID from app.currentUser:', currentUserId);
+                }
+                
+                // Thử lấy từ localStorage nếu không có
+                if (!currentUserId) {
+                    const userData = localStorage.getItem('user_data');
+                    if (userData) {
+                        try {
+                            const user = JSON.parse(userData);
+                            currentUserId = user.id;
+                            console.log('⏰ Got user ID from localStorage:', currentUserId);
+                        } catch (e) {
+                            console.warn('⏰ Could not parse user data from localStorage');
+                        }
+                    }
+                }
+                
+                // Thử lấy từ token nếu không có
+                if (!currentUserId) {
+                    const token = localStorage.getItem('access_token');
+                    if (token) {
+                        try {
+                            const payload = JSON.parse(atob(token.split('.')[1]));
+                            currentUserId = payload.user_id;
+                            console.log('⏰ Got user ID from token:', currentUserId);
+                        } catch (e) {
+                            console.warn('⏰ Could not parse user ID from token');
+                        }
+                    }
+                }
+                
+                console.log('⏰ Final current user ID:', currentUserId);
+                console.log('⏰ Users to notify:', data.users_to_notify);
+                
+                if (currentUserId) {
+                    // Convert currentUserId to integer for comparison
+                    const currentUserIdInt = parseInt(currentUserId);
+                    const usersToNotifyInts = data.users_to_notify.map(id => parseInt(id));
+                    
+                    console.log('⏰ Current user ID (int):', currentUserIdInt);
+                    console.log('⏰ Users to notify (ints):', usersToNotifyInts);
+                    
+                    if (!usersToNotifyInts.includes(currentUserIdInt)) {
+                        console.log('⏰ User already kept active, skipping notification display');
+                        return;
+                    } else {
+                        console.log('⏰ User needs notification, showing...');
+                    }
+                } else {
+                    console.warn('⏰ Could not get current user ID, showing notification anyway');
+                }
+            } else {
+                console.log('⏰ No users_to_notify or empty array, showing notification for all users');
+            }
         }
         
         this.hideNotification();
@@ -545,6 +580,8 @@ export class SimpleCountdownModuleV2 {
      */
     async handleResponse(isYes) {
         console.log('⏰ handleResponse called with:', isYes);
+        console.log('⏰ Current room ID:', this.currentRoomId);
+        console.log('⏰ App current room:', this.app?.currentRoom);
         
         if (!this.currentRoomId) {
             console.error('⏰ No room ID available for response');
@@ -561,9 +598,14 @@ export class SimpleCountdownModuleV2 {
             // Nếu user chọn "Có" - đồng bộ với nút "Giữ hoạt động"
             console.log('⏰ User chose "Có" - syncing with keep active button');
             
-            // ✅ THÊM: Cập nhật trạng thái "Giữ hoạt động" trước
-            if (this.app && this.app.chatModule) {
-                this.app.chatModule.updateKeepActiveButton();
+            // ✅ SỬA: Sử dụng StateManager để record response
+            if (this.app?.keepActiveManager) {
+                await this.app.keepActiveManager.recordUserResponse(this.currentRoomId, 'yes');
+            }
+            
+            // ✅ SỬA: Sử dụng StateManager để update button
+            if (this.app?.keepActiveManager && this.currentRoomId) {
+                this.app.keepActiveManager.updateKeepActiveButton(this.currentRoomId);
             }
             
             // Gọi endpoint response để xử lý logic notification
@@ -672,6 +714,11 @@ export class SimpleCountdownModuleV2 {
      */
     async syncWithBackend(roomId) {
         try {
+            console.log('⏰ Syncing with backend for room:', roomId);
+            
+            // ✅ THÊM: Set currentRoomId trước khi sync
+            this.currentRoomId = roomId;
+            
             const response = await fetch(`/simple-countdown/status/${roomId}`, {
                 method: 'GET',
                 headers: {
@@ -681,17 +728,52 @@ export class SimpleCountdownModuleV2 {
             
             if (response.ok) {
                 const status = await response.json();
-                console.log('⏰ Sync status:', status);
+                console.log('⏰ Sync status from backend:', status);
                 
                 // Chỉ hiển thị nếu có active countdown/notification
                 if (status.phase === 'countdown' && status.countdown_remaining > 0) {
+                    console.log('⏰ Restoring countdown with remaining time:', status.countdown_remaining);
                     this.showCountdown(status.countdown_remaining);
                 } else if (status.phase === 'notification' && status.notification_remaining > 0) {
-                    this.showNotification({ 
-                        message: 'Bạn có muốn tiếp tục cuộc trò chuyện với người này không?',
-                        timeout: status.notification_remaining
-                    });
+                    console.log('⏰ Restoring notification with remaining time:', status.notification_remaining);
+                    
+                    // ✅ SỬA: Sử dụng StateManager để check xem có nên hiển thị notification không
+                    if (this.app?.keepActiveManager) {
+                        const shouldShow = this.app.keepActiveManager.shouldShowNotification(
+                            roomId, 
+                            status.users_to_notify || []
+                        );
+                        
+                        if (shouldShow) {
+                            this.showNotification({ 
+                                message: 'Bạn có muốn tiếp tục cuộc trò chuyện không?',
+                                timeout: status.notification_remaining,
+                                users_to_notify: status.users_to_notify || []
+                            });
+                        } else {
+                            console.log('⏰ User already kept active, skipping notification restore');
+                        }
+                    } else {
+                        // Fallback nếu không có StateManager
+                        this.showNotification({ 
+                            message: 'Bạn có muốn tiếp tục cuộc trò chuyện không?',
+                            timeout: status.notification_remaining,
+                            users_to_notify: status.users_to_notify || []
+                        });
+                    }
+                } else {
+                    console.log('⏰ No active countdown/notification to restore');
+                    
+                    // ✅ SỬA: Không reset button nếu user đã kept active
+                    if (this.app?.keepActiveManager) {
+                        // Chỉ reset button nếu user chưa kept active
+                        if (!this.app.keepActiveManager.hasUserKeptActive(roomId)) {
+                            this.app.keepActiveManager.resetKeepActiveButton(roomId);
+                        }
+                    }
                 }
+            } else {
+                console.log('⏰ Failed to get countdown status:', response.status);
             }
         } catch (error) {
             console.error('⏰ Error syncing with backend:', error);
@@ -736,13 +818,20 @@ export class SimpleCountdownModuleV2 {
         }, 5000);
     }
     
+    // ✅ REMOVED: resetKeepActiveButton - đã được thay thế bởi KeepActiveStateManager
+
     /**
      * Cleanup
      */
     cleanup() {
         this.hideCountdown();
         this.hideNotification();
-        this.resetKeepActiveButton();
+        
+        // ✅ SỬA: Sử dụng StateManager để reset button
+        if (this.app?.keepActiveManager && this.currentRoomId) {
+            this.app.keepActiveManager.resetKeepActiveButton(this.currentRoomId);
+        }
+        
         this.currentRoomId = null;
         console.log('⏰ SimpleCountdownModuleV2 cleaned up');
     }

@@ -202,6 +202,31 @@ class ConnectionManager {
     }
   }
 
+  // ✅ THÊM: Broadcast message to specific user
+  async broadcastToUser(message, userId) {
+    try {
+      console.log(`📢 Broadcasting message to user ${userId}`);
+
+      const socket = this.activeConnections.get(userId);
+      if (!socket) {
+        console.log(`⚠️ No active connection found for user ${userId}`);
+        return false;
+      }
+
+      try {
+        socket.emit('message', message);
+        console.log(`✅ Message sent to user ${userId}`);
+        return true;
+      } catch (error) {
+        console.error(`❌ Error sending message to user ${userId}:`, error);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error broadcasting to user ${userId}:`, error);
+      return false;
+    }
+  }
+
   // Get room info
   getRoomInfo(roomId) {
     if (!this.roomConnections.has(roomId)) {

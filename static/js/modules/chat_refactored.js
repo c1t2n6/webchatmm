@@ -4,6 +4,7 @@ import { MessageHandler } from './message_handler.js';
 import { RoomManager } from './room_manager.js';
 import { ConnectionStatus } from './connection_status.js';
 import { DebugTools } from './debug_tools.js';
+import { KeepActiveStateManager } from './keep_active_manager.js';
 
 class ChatModule {
     constructor(app) {
@@ -15,11 +16,13 @@ class ChatModule {
         this.roomManager = new RoomManager(app);
         this.connectionStatus = new ConnectionStatus(app);
         this.debugTools = new DebugTools(app);
+        this.keepActiveManager = new KeepActiveStateManager(app);
         
         // Set references for sub-modules
         this.app.websocketManager = this.websocketManager;
         this.app.roomManager = this.roomManager;
         this.app.messageHandler = this.messageHandler;
+        this.app.keepActiveManager = this.keepActiveManager;
         
         // Message deduplication
         this.processedMessages = new Set();
@@ -98,6 +101,8 @@ class ChatModule {
             this.app.currentUser.status.toLowerCase() === 'connected' && 
             this.app.currentUser.current_room_id) {
             console.log('🔍 Chat - User is in chat room, checking if room is still active...');
+            console.log('🔍 Chat - Current user:', this.app.currentUser);
+            console.log('🔍 Chat - Current room ID:', this.app.currentUser.current_room_id);
             
             if (this.roomManager.roomEnded) {
                 console.log('🔍 Chat - Room was ended during sync, staying in waiting room');
@@ -110,12 +115,9 @@ class ChatModule {
             const waitingRoom = document.getElementById('waitingRoom');
             const searching = document.getElementById('searching');
             
-            // If in waiting room or searching, redirect to chat room
-            if ((waitingRoom && !waitingRoom.classList.contains('hidden')) || 
-                (searching && !searching.classList.contains('hidden'))) {
-                console.log('🔍 Chat - User is in waiting/searching, redirecting to chat room...');
-                await this.enterChatRoom(this.app.currentUser.current_room_id);
-            }
+            // Always enter chat room to restore state, regardless of current UI
+            console.log('🔍 Chat - User is in chat room, entering to restore state...');
+            await this.enterChatRoom(this.app.currentUser.current_room_id);
             
             this.roomManager.isRestoringState = false;
             return true;
@@ -174,8 +176,10 @@ class ChatModule {
         console.log('🔍 Chat - Loading chat history for room:', roomId);
         this.isLoadingHistory = true;
         
-        // Reset keep active button when loading new room history
-        this.resetKeepActiveButton();
+        // ✅ SỬA: Sử dụng StateManager để reset button
+        if (this.app.currentRoom?.id) {
+            this.keepActiveManager.resetKeepActiveButton(this.app.currentRoom.id);
+        }
         console.log('🔍 Chat - Reset keep active button for new room history');
         
         try {
@@ -307,8 +311,10 @@ class ChatModule {
         console.log('🔍 Chat - Setting up after join room:', roomId);
         this.isSettingUpRoom = true;
         
-        // Reset keep active button for new room
-        this.resetKeepActiveButton();
+        // ✅ SỬA: Sử dụng StateManager để reset button
+        if (this.app.currentRoom?.id) {
+            this.keepActiveManager.resetKeepActiveButton(this.app.currentRoom.id);
+        }
         
         // Load chat history
         this.loadChatHistory(roomId);
@@ -376,9 +382,13 @@ class ChatModule {
     // Unified method to enter chat room
     async enterChatRoom(roomId) {
         console.log('🔍 Chat - enterChatRoom called with roomId:', roomId);
+        console.log('🔍 Chat - Current user before enter:', this.app.currentUser);
         
         // Set current room
         this.app.currentRoom = { id: roomId };
+        
+        // Initialize keep active state manager for this room
+        this.keepActiveManager.setCurrentRoom(roomId);
         
         // Show chat room UI
         await this.showChatRoomWithSync();
@@ -386,10 +396,39 @@ class ChatModule {
         // Connect WebSocket and setup
         await this.connectChatWebSocket(roomId);
         
-        // ✅ THÊM: Restore trạng thái "Giữ hoạt động" từ localStorage
-        this.restoreKeepActiveState();
+        // ✅ SỬA: Đồng bộ state trước khi sync countdown
+        console.log('🔍 Chat - Synchronizing state before countdown sync...');
+        await this.synchronizeStateAfterReload(roomId);
         
         console.log('🔍 Chat - Successfully entered chat room:', roomId);
+    }
+
+    /**
+     * Đồng bộ state sau khi reload page
+     */
+    async synchronizeStateAfterReload(roomId) {
+        try {
+            console.log('🔍 Chat - Starting state synchronization for room:', roomId);
+            
+            // 1. Restore keep active state từ StateManager
+            console.log('🔍 Chat - Restoring keep active state...');
+            this.keepActiveManager.updateKeepActiveButton(roomId);
+            
+            // 2. Sync với backend để lấy trạng thái countdown/notification
+            console.log('🔍 Chat - Syncing with backend...');
+            if (this.app.simpleCountdownModule) {
+                await this.app.simpleCountdownModule.syncWithBackend(roomId);
+            }
+            
+            // 3. Đảm bảo button state được đồng bộ sau khi sync
+            console.log('🔍 Chat - Finalizing button state...');
+            this.keepActiveManager.updateKeepActiveButton(roomId);
+            
+            console.log('🔍 Chat - State synchronization completed');
+            
+        } catch (error) {
+            console.error('🔍 Chat - Error synchronizing state:', error);
+        }
     }
 
     async syncCountdownStatus() {
@@ -423,15 +462,7 @@ class ChatModule {
             return;
         }
 
-        // ✅ THÊM: Handle countdown/notification messages
-        if (data.type && ['countdown_start', 'countdown_update', 'notification_show', 'notification_update', 'room_kept', 'waiting_for_other', 'room_ended'].includes(data.type)) {
-            console.log('🔍 Chat - Routing countdown/notification message to SimpleCountdownModuleV2:', data.type);
-            if (this.app.simpleCountdownModule) {
-                // ✅ SỬA: Truyền data object trực tiếp thay vì JSON.stringify
-                this.app.simpleCountdownModule.handleWebSocketMessage(data);
-            }
-            return;
-        }
+        // ✅ REMOVED: Duplicate countdown/notification handling - đã được xử lý trong routeMessage
 
         // Create unique message fingerprint
         const fingerprint = this.createMessageFingerprint(data);
@@ -496,7 +527,7 @@ class ChatModule {
             this.handleRoomClosed(data);
         } else if (type === 'room_ended') {
             if (this.app.simpleCountdownModule) {
-                this.app.simpleCountdownModule.handleWebSocketMessage(JSON.stringify(data));
+                this.app.simpleCountdownModule.handleWebSocketMessage(data);
             }
             this.handleRoomEndedByUser(data);
         } else if (type === 'connection') {
@@ -505,13 +536,10 @@ class ChatModule {
             }
         } else if (type === 'status_update') {
             this.handleStatusUpdate(data);
-        } else if (type === 'room_kept') {
-            this.hideCountdownTimer();
-        } else if (type === 'countdown_start') {
-            this.handleCountdownStart(data);
-        } else if (type === 'countdown_update' || type === 'notification_show' || type === 'notification_update') {
+        } else if (type === 'countdown_start' || type === 'countdown_update' || type === 'notification_show' || type === 'notification_update' || type === 'room_kept' || type === 'waiting_for_other' || type === 'room_ended') {
+            // ✅ SỬA: Route tất cả countdown/notification messages đến SimpleCountdownModuleV2
             if (this.app.simpleCountdownModule) {
-                this.app.simpleCountdownModule.handleWebSocketMessage(JSON.stringify(data));
+                this.app.simpleCountdownModule.handleWebSocketMessage(data);
             }
         } else if (type === 'countdown_cancel') {
             this.hideCountdownTimer();
@@ -668,12 +696,10 @@ class ChatModule {
         // Hide countdown timer
         this.hideCountdownTimer();
         
-        // Reset keep active button
-        this.resetKeepActiveButton();
-        console.log('🔍 Chat - Reset keep active button in resetChatState');
-        
-        // ✅ THÊM: Clear keep active state từ localStorage
-        this.clearKeepActiveState();
+        // ✅ SỬA: Sử dụng StateManager để clear state
+        if (this.app.currentRoom?.id) {
+            this.keepActiveManager.clearRoomState(this.app.currentRoom.id);
+        }
         
         // Clear typing state
         this.messageHandler.clearTypingState();
@@ -735,13 +761,17 @@ class ChatModule {
             
             console.log('🔍 Sending keep active request to room:', this.app.currentRoom.id);
             
-            const response = await fetch(`/chat/keep/${this.app.currentRoom.id}`, {
+            // ✅ SỬA: Sử dụng StateManager để record response
+            await this.keepActiveManager.recordUserResponse(this.app.currentRoom.id, 'yes');
+            
+            // ✅ SỬA: Gọi endpoint response thay vì keep
+            const response = await fetch(`/simple-countdown/response/${this.app.currentRoom.id}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ keep_active: true })
+                body: JSON.stringify({ response: "yes" })
             });
             
             console.log('🔍 Keep active response status:', response.status);
@@ -750,17 +780,21 @@ class ChatModule {
                 const result = await response.json();
                 console.log('✅ Keep active request sent successfully:', result);
                 
-                // Update UI immediately
-                this.updateKeepActiveButton();
+                // Update UI immediately using StateManager
+                this.keepActiveManager.updateKeepActiveButton(this.app.currentRoom.id);
                 
                 // Hide countdown
                 this.hideCountdownTimer();
                 
                 // Handle result
-                if (result.room_kept) {
+                if (result.room_ended) {
+                    this.connectionStatus.showToast(result.message, 'error');
+                } else if (result.room_kept) {
                     this.connectionStatus.showToast(result.message, 'success');
                 } else if (result.waiting_for_other) {
                     this.connectionStatus.showToast(result.message, 'info');
+                } else {
+                    this.connectionStatus.showToast('Đã giữ hoạt động cuộc trò chuyện', 'success');
                 }
             } else if (response.status === 401) {
                 console.error('❌ Authentication failed - token expired or invalid');
@@ -777,103 +811,15 @@ class ChatModule {
         }
     }
 
-    updateKeepActiveButton() {
-        const keepActiveBtn = document.getElementById('keepActive');
-        if (keepActiveBtn) {
-            keepActiveBtn.textContent = 'Đã giữ hoạt động';
-            keepActiveBtn.disabled = true;
-            keepActiveBtn.style.background = '#10B981';
-            keepActiveBtn.style.cursor = 'not-allowed';
-            
-            // ✅ THÊM: Lưu trạng thái vào localStorage
-            if (this.app.currentRoom && this.app.currentRoom.id) {
-                const roomId = this.app.currentRoom.id;
-                const keepActiveState = {
-                    roomId: roomId,
-                    userId: this.app.currentUser?.id,
-                    timestamp: Date.now(),
-                    status: 'kept_active'
-                };
-                localStorage.setItem(`keepActive_${roomId}`, JSON.stringify(keepActiveState));
-                console.log('🔍 Keep active state saved to localStorage:', keepActiveState);
-            }
-        }
-    }
+    // ✅ REMOVED: updateKeepActiveButton - đã được thay thế bởi KeepActiveStateManager
 
-    resetKeepActiveButton() {
-        const keepActiveBtn = document.getElementById('keepActive');
-        if (keepActiveBtn) {
-            keepActiveBtn.textContent = 'Giữ hoạt động';
-            keepActiveBtn.disabled = false;
-            keepActiveBtn.style.background = '';
-            keepActiveBtn.style.cursor = '';
-        }
-    }
+    // ✅ REMOVED: resetKeepActiveButton - đã được thay thế bởi KeepActiveStateManager
 
-    // ✅ THÊM: Restore trạng thái "Giữ hoạt động" từ localStorage
-    restoreKeepActiveState() {
-        if (!this.app.currentRoom || !this.app.currentRoom.id) {
-            return false;
-        }
-        
-        const roomId = this.app.currentRoom.id;
-        const keepActiveData = localStorage.getItem(`keepActive_${roomId}`);
-        
-        if (keepActiveData) {
-            try {
-                const state = JSON.parse(keepActiveData);
-                const currentUserId = this.app.currentUser?.id;
-                
-                // Kiểm tra xem state có thuộc về user hiện tại không
-                if (state.userId === currentUserId && state.roomId === roomId) {
-                    console.log('🔍 Restoring keep active state:', state);
-                    this.updateKeepActiveButton();
-                    return true;
-                } else {
-                    // State không thuộc về user hiện tại, xóa
-                    localStorage.removeItem(`keepActive_${roomId}`);
-                    console.log('🔍 Removed invalid keep active state');
-                }
-            } catch (error) {
-                console.error('🔍 Error parsing keep active state:', error);
-                localStorage.removeItem(`keepActive_${roomId}`);
-            }
-        }
-        
-        return false;
-    }
+    // ✅ REMOVED: restoreKeepActiveState - đã được thay thế bởi KeepActiveStateManager
 
-    // ✅ THÊM: Check xem user đã ấn "Giữ hoạt động" chưa
-    hasUserKeptActive() {
-        if (!this.app.currentRoom || !this.app.currentRoom.id) {
-            return false;
-        }
-        
-        const roomId = this.app.currentRoom.id;
-        const keepActiveData = localStorage.getItem(`keepActive_${roomId}`);
-        
-        if (keepActiveData) {
-            try {
-                const state = JSON.parse(keepActiveData);
-                const currentUserId = this.app.currentUser?.id;
-                return state.userId === currentUserId && state.roomId === roomId;
-            } catch (error) {
-                console.error('🔍 Error parsing keep active state:', error);
-                return false;
-            }
-        }
-        
-        return false;
-    }
+    // ✅ REMOVED: hasUserKeptActive - đã được thay thế bởi KeepActiveStateManager
 
-    // ✅ THÊM: Clear keep active state từ localStorage
-    clearKeepActiveState() {
-        if (this.app.currentRoom && this.app.currentRoom.id) {
-            const roomId = this.app.currentRoom.id;
-            localStorage.removeItem(`keepActive_${roomId}`);
-            console.log('🔍 Cleared keep active state for room:', roomId);
-        }
-    }
+    // ✅ REMOVED: clearKeepActiveState - đã được thay thế bởi KeepActiveStateManager
 
     // Countdown timer methods
     showCountdownTimer(duration = 15) {
@@ -931,22 +877,7 @@ class ChatModule {
         }
     }
 
-    handleCountdownStart(data) {
-        console.log('🔍 Chat - handleCountdownStart called with:', data);
-        const duration = data.duration || 15;
-        
-        const existingCountdown = document.getElementById('like-countdown');
-        if (existingCountdown) {
-            console.log('🔍 Chat - Countdown already exists, updating duration');
-            const timeElement = existingCountdown.querySelector('.countdown-time');
-            if (timeElement) {
-                timeElement.textContent = `${duration}s`;
-            }
-        } else {
-            console.log('🔍 Chat - Creating new countdown with duration:', duration);
-            this.showCountdownTimer(duration);
-        }
-    }
+    // ✅ REMOVED: handleCountdownStart - đã được xử lý bởi SimpleCountdownModuleV2
 
     // Other utility methods
     async reportUser() {
