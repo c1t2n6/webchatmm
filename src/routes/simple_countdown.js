@@ -191,7 +191,7 @@ router.get('/status/:roomId', authenticateToken, async (req, res) => {
 router.post('/start/:roomId', authenticateToken, async (req, res) => {
   try {
     const { roomId } = req.params;
-    const { duration = 15 } = req.body;
+    const { duration = 300 } = req.body;
     const currentUser = req.user;
 
     console.log(`⏰ Starting countdown for room ${roomId}, duration: ${duration}s`);

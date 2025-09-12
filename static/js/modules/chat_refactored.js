@@ -822,7 +822,7 @@ class ChatModule {
     // ✅ REMOVED: clearKeepActiveState - đã được thay thế bởi KeepActiveStateManager
 
     // Countdown timer methods
-    showCountdownTimer(duration = 15) {
+    showCountdownTimer(duration = 300) {
         console.log('🔍 Chat - Showing countdown timer with duration:', duration);
         
         let countdownEl = document.getElementById('like-countdown');
