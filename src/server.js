@@ -34,7 +34,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:8000', 'http://127.0.0.1:8000'],
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:8000', 'http://127.0.0.1:8000', 'https://webchat-nodejs-draft.onrender.com'],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
     allowedHeaders: ["Authorization", "Content-Type"]
@@ -58,7 +58,7 @@ let userModel, roomModel, messageModel, connectionManager, webSocketHandler, mat
 
 // Middleware
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:8000', 'http://127.0.0.1:8000'],
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:8000', 'http://127.0.0.1:8000', 'https://webchat-nodejs-draft.onrender.com'],
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
   allowedHeaders: ["Authorization", "Content-Type"]

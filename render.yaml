@@ -14,6 +14,8 @@ services:
         value: 8000
       - key: DATABASE_URL
         value: sqlite:///./app.db
+      - key: ALLOWED_ORIGINS
+        value: https://webchat-nodejs-draft.onrender.com,http://localhost:8000
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: JWT_ALGORITHM
@@ -30,6 +32,18 @@ services:
         value: false
       - key: ENABLE_DARK_MODE
         value: true
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 1000
+      - key: RATE_LIMIT_AUTH_MAX
+        value: 10
+      - key: RATE_LIMIT_SEARCH_MAX
+        value: 5
+      - key: RATE_LIMIT_MESSAGE_MAX
+        value: 30
+      - key: RATE_LIMIT_UPLOAD_MAX
+        value: 10
       - key: RATE_LIMIT_SEARCH
         value: 5
       - key: RATE_LIMIT_UPLOAD
@@ -39,7 +53,7 @@ services:
       - key: MAX_FILE_SIZE
         value: 5242880
       - key: UPLOAD_DIR
-        value: ./uploads
+        value: ./static/uploads
       - key: LOG_LEVEL
         value: INFO
       - key: LOG_FILE

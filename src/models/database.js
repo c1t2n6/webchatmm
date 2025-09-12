@@ -2,21 +2,46 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const config = require('../../config');
 
 class Database {
   constructor() {
     this.db = null;
-    this.dbPath = path.join(__dirname, '../../app.db');
+    // Use DATABASE_URL from environment or fallback to default
+    this.dbPath = this.getDatabasePath();
+  }
+
+  getDatabasePath() {
+    // Parse DATABASE_URL (format: sqlite:///./app.db)
+    if (config.databaseUrl && config.databaseUrl.startsWith('sqlite:///')) {
+      const dbPath = config.databaseUrl.replace('sqlite:///', '');
+      return path.resolve(dbPath);
+    }
+    
+    // Fallback to default path
+    return path.join(__dirname, '../../app.db');
   }
 
   async connect() {
     return new Promise((resolve, reject) => {
+      console.log('🔗 Attempting to connect to database at:', this.dbPath);
+      
+      // Ensure directory exists
+      const dbDir = path.dirname(this.dbPath);
+      if (!fs.existsSync(dbDir)) {
+        console.log('📁 Creating database directory:', dbDir);
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+      
       this.db = new sqlite3.Database(this.dbPath, (err) => {
         if (err) {
           console.error('❌ Database connection error:', err);
+          console.error('❌ Database path:', this.dbPath);
+          console.error('❌ Current working directory:', process.cwd());
           reject(err);
         } else {
           console.log('✅ Connected to SQLite database');
+          console.log('✅ Database path:', this.dbPath);
           resolve();
         }
       });
