@@ -186,8 +186,9 @@ export class AuthModule {
         const username = document.getElementById('signupUsername').value.trim();
         const password = document.getElementById('signupPassword').value;
         const confirmPassword = document.getElementById('signupConfirmPassword').value;
+        const email = document.getElementById('signupEmail').value.trim();
 
-        if (!username || !password) {
+        if (!username || !password || !email) {
             this.app.utilsModule.showError('Vui lòng điền đầy đủ thông tin');
             return;
         }
@@ -206,7 +207,7 @@ export class AuthModule {
             const response = await fetch('/auth/signup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({ username, password, email })
             });
 
             if (response.ok) {
