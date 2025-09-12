@@ -1,4 +1,6 @@
 // Profile Wizard Module
+import { ProfileDataUtils } from './profile-data.js';
+
 export class ProfileModule {
     constructor(app) {
         this.app = app;
@@ -38,48 +40,45 @@ export class ProfileModule {
     validateCurrentStep() {
         const currentStep = this.getCurrentWizardStep();
         
+        // ✅ SỬ DỤNG: Shared validation logic
+        const profileData = ProfileDataUtils.collectWizardData();
+        
         switch (currentStep) {
             case 1:
-                const nickname = document.getElementById('nickname')?.value;
-                const dob = document.getElementById('dob')?.value;
-                const gender = document.getElementById('gender')?.value;
+                // Validate basic info using shared utils
+                const basicErrors = ProfileDataUtils.validateProfileData({
+                    nickname: profileData.nickname,
+                    dob: profileData.dob, 
+                    gender: profileData.gender
+                }, false);
                 
-                if (!nickname || !dob || !gender) {
-                    this.app.showError('Vui lòng điền đầy đủ thông tin');
-                    return false;
-                }
-                
-                const age = this.calculateAge(dob);
-                if (age < 18) {
-                    this.app.showError('Bạn phải từ 18 tuổi trở lên');
+                if (basicErrors.length > 0) {
+                    this.app.utilsModule.showError(basicErrors[0]);
                     return false;
                 }
                 break;
                 
             case 2:
-                const preferredGenders = document.querySelectorAll('#step2 input[type="checkbox"]:checked');
-                if (preferredGenders.length === 0) {
-                    this.app.showError('Vui lòng chọn ít nhất một giới tính');
+                if (profileData.preferred_gender.length === 0) {
+                    this.app.utilsModule.showError('Vui lòng chọn ít nhất một giới tính mong muốn');
                     return false;
                 }
                 break;
                 
             case 3:
-                const needs = document.querySelectorAll('#step3 input[type="checkbox"]:checked');
-                if (needs.length === 0) {
-                    this.app.showError('Vui lòng chọn ít nhất một nhu cầu');
+                if (profileData.needs.length === 0) {
+                    this.app.utilsModule.showError('Vui lòng chọn ít nhất một nhu cầu kết nối');
                     return false;
                 }
                 break;
                 
             case 4:
-                const interests = document.querySelectorAll('#step4 input[type="checkbox"]:checked');
-                if (interests.length === 0) {
-                    this.app.showError('Vui lòng chọn ít nhất một sở thích');
+                if (profileData.interests.length === 0) {
+                    this.app.utilsModule.showError('Vui lòng chọn ít nhất một sở thích');
                     return false;
                 }
-                if (interests.length > 5) {
-                    this.app.showError('Chỉ được chọn tối đa 5 sở thích');
+                if (profileData.interests.length > 5) {
+                    this.app.utilsModule.showError('Chỉ được chọn tối đa 5 sở thích');
                     return false;
                 }
                 break;
@@ -89,9 +88,13 @@ export class ProfileModule {
     }
 
     skipProfile() {
-        localStorage.setItem(`profile_completed_${this.app.currentUser.id}`, 'skipped');
-        this.app.hideProfileWizard();
-        this.app.showWaitingRoom();
+        // ✅ SỬA: Không dùng localStorage nữa, chỉ set profile_completed = true trong database
+        this.app.currentUser.profile_completed = true;
+        
+        // ✅ THÊM: Reset flag khi kết thúc profile wizard
+        this.app.showingProfileWizard = false;
+        this.app.uiModule.hideProfileWizard();
+        this.app.uiModule.showWaitingRoom();
     }
 
     calculateAge(dob) {
@@ -108,14 +111,8 @@ export class ProfileModule {
     }
 
     async completeProfile() {
-        const profileData = {
-            nickname: document.getElementById('nickname').value,
-            dob: document.getElementById('dob').value,
-            gender: document.getElementById('gender').value,
-            preferred_gender: Array.from(document.querySelectorAll('#step2 input[type="checkbox"]:checked')).map(cb => cb.value),
-            needs: Array.from(document.querySelectorAll('#step3 input[type="checkbox"]:checked')).map(cb => cb.value),
-            interests: Array.from(document.querySelectorAll('#step4 input[type="checkbox"]:checked')).map(cb => cb.value)
-        };
+        // ✅ SỬ DỤNG: Shared data collection
+        const profileData = ProfileDataUtils.formatForAPI(ProfileDataUtils.collectWizardData());
 
         try {
             const response = await fetch('/user/profile/update', {
@@ -128,17 +125,33 @@ export class ProfileModule {
             });
 
             if (response.ok) {
+                const data = await response.json();
+                
+                // ✅ THÊM: Cập nhật token mới nếu có
+                if (data.access_token) {
+                    localStorage.setItem('access_token', data.access_token);
+                    console.log('🔄 Profile - Token refreshed after profile update');
+                }
+                
+                // ✅ THÊM: Cập nhật user data từ server response
+                if (data.user) {
+                    this.app.currentUser = { ...this.app.currentUser, ...data.user };
+                    console.log('🔄 Profile - User data updated:', this.app.currentUser);
+                }
+                
                 this.app.currentUser.profile_completed = true;
-                localStorage.setItem(`profile_completed_${this.app.currentUser.id}`, 'true');
-                this.app.hideProfileWizard();
-                this.app.showWaitingRoom();
+                // ✅ SỬA: Xóa localStorage profile check, chỉ dùng database
+                // ✅ THÊM: Reset flag khi hoàn thành profile wizard
+                this.app.showingProfileWizard = false;
+                this.app.uiModule.hideProfileWizard();
+                this.app.uiModule.showWaitingRoom();
             } else {
                 const error = await response.json();
-                this.app.showError(error.detail || 'Cập nhật hồ sơ thất bại');
+                this.app.utilsModule.showError(error.detail || 'Cập nhật hồ sơ thất bại');
             }
         } catch (error) {
             console.error('Profile update error:', error);
-            this.app.showError('Lỗi kết nối');
+            this.app.utilsModule.showError('Lỗi kết nối');
         }
     }
 
@@ -146,7 +159,7 @@ export class ProfileModule {
         const checkedBoxes = document.querySelectorAll('.interest-checkbox:checked');
         if (checkedBoxes.length > 5) {
             event.target.checked = false;
-            this.app.showError('Chỉ được chọn tối đa 5 sở thích');
+            this.app.utilsModule.showError('Chỉ được chọn tối đa 5 sở thích');
         }
     }
 

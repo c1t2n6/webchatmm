@@ -16,9 +16,14 @@ export class SimpleCountdownModuleV2 {
     /**
      * Xử lý WebSocket message từ backend
      */
-    handleWebSocketMessage(message) {
+    handleWebSocketMessage(data) {
         try {
-            const data = JSON.parse(message);
+            // ✅ SỬA: data đã là object, không cần parse
+            if (typeof data === 'string') {
+                data = JSON.parse(data);
+            }
+            
+            console.log('⏰ SimpleCountdownModuleV2 received message:', data.type, data);
             
             switch (data.type) {
                 case 'countdown_start':
@@ -46,7 +51,7 @@ export class SimpleCountdownModuleV2 {
                     console.log('⏰ Unknown message type:', data.type);
             }
         } catch (error) {
-            console.error('⏰ Error parsing WebSocket message:', error);
+            console.error('⏰ Error handling WebSocket message:', error);
         }
     }
     
@@ -77,11 +82,17 @@ export class SimpleCountdownModuleV2 {
     handleNotificationShow(data) {
         console.log('⏰ Notification show:', data);
         
+        // ✅ THÊM: Check xem user đã ấn "Giữ hoạt động" chưa
+        if (this.app && this.app.chatModule && this.app.chatModule.hasUserKeptActive()) {
+            console.log('⏰ User has already kept active, skipping notification');
+            return;
+        }
+        
         // Đảm bảo ẩn countdown trước khi hiển thị notification
         this.hideCountdown();
         
         this.showNotification({
-            message: data.message || 'Bạn có muốn tiếp tục cuộc trò chuyện với người này không?',
+            message: 'Bạn có muốn tiếp tục cuộc trò chuyện không?',
             timeout: data.timeout || 30,
             users_to_notify: data.users_to_notify || []  // Truyền users_to_notify
         });
@@ -547,76 +558,83 @@ export class SimpleCountdownModuleV2 {
         console.log('⏰ User response:', isYes ? 'Yes' : 'No');
         
         if (isYes) {
-            // Nếu user chọn "Có" - gọi method thống nhất từ chat module
-            if (this.app && this.app.chatModule && this.app.chatModule.handleKeepActiveRequest) {
-                try {
-                    await this.app.chatModule.handleKeepActiveRequest();
-                    this.hideNotification();
-                    return;
-                } catch (error) {
-                    console.error('⏰ Error calling handleKeepActiveRequest:', error);
-                    this.enableNotificationButtons(); // Re-enable buttons on error
-                    this.showToast('Lỗi gửi phản hồi. Vui lòng thử lại.', 'error');
-                    return;
-                }
+            // Nếu user chọn "Có" - đồng bộ với nút "Giữ hoạt động"
+            console.log('⏰ User chose "Có" - syncing with keep active button');
+            
+            // ✅ THÊM: Cập nhật trạng thái "Giữ hoạt động" trước
+            if (this.app && this.app.chatModule) {
+                this.app.chatModule.updateKeepActiveButton();
             }
+            
+            // Gọi endpoint response để xử lý logic notification
+            try {
+                const response = await fetch(`/simple-countdown/response/${this.currentRoomId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    },
+                    body: JSON.stringify({ response: "yes" })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('⏰ Response sent successfully:', result);
+                    
+                    this.hideNotification();
+                    
+                    if (result.room_ended) {
+                        this.showToast(result.message, 'error');
+                    } else if (result.room_kept) {
+                        this.showToast(result.message, 'success');
+                    } else if (result.waiting_for_other) {
+                        this.showToast(result.message, 'info');
+                    }
+                } else {
+                    const error = await response.text();
+                    console.error('⏰ Error sending response:', response.status, error);
+                    
+                    this.enableNotificationButtons();
+                    this.showToast('Lỗi gửi phản hồi. Vui lòng thử lại.', 'error');
+                }
+            } catch (error) {
+                console.error('⏰ Error sending response:', error);
+                this.enableNotificationButtons();
+                this.showToast('Lỗi gửi phản hồi. Vui lòng thử lại.', 'error');
+            }
+            return;
         }
         
-        // Nếu user chọn "Không" hoặc không có chat module - xử lý bình thường
-        try {
-            const response = await fetch(`/simple-countdown/response/${this.currentRoomId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                },
-                body: JSON.stringify({ response: isYes ? "yes" : "no" })
-            });
-            
-            if (response.ok) {
-                const result = await response.json();
-                console.log('⏰ Response sent successfully:', result);
-                
-                this.hideNotification();
-                
-                if (result.room_ended) {
-                    this.showToast(result.message, 'error');
-                } else if (result.room_kept) {
-                    this.showToast(result.message, 'success');
-                } else if (result.waiting_for_other) {
-                    this.showToast(result.message, 'info');
-                }
-            } else {
-                const error = await response.text();
-                console.error('⏰ Error sending response:', response.status, error);
-                
-                // ✅ SỬA: Enable buttons lại khi có lỗi
-                this.enableNotificationButtons();
-                
-                // Parse error message for better user feedback
-                let errorMessage = 'Lỗi gửi phản hồi. Vui lòng thử lại.';
-                try {
-                    const errorData = JSON.parse(error);
-                    if (errorData.detail) {
-                        if (errorData.detail === "Not in notification phase") {
-                            errorMessage = 'Không thể gửi phản hồi lúc này. Vui lòng đợi thông báo từ hệ thống.';
-                        } else {
-                            errorMessage = errorData.detail;
-                        }
+        // Nếu user chọn "Không" - gọi endpoint kết thúc room
+        if (!isYes) {
+            try {
+                const response = await fetch(`/chat/end/${this.currentRoomId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
                     }
-                } catch (e) {
-                    // Use default error message if parsing fails
-                }
+                });
                 
-                this.showToast(errorMessage, 'error');
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('⏰ Room ended successfully:', result);
+                    
+                    this.hideNotification();
+                    this.showToast(result.message, 'error');
+                } else {
+                    const error = await response.text();
+                    console.error('⏰ Error ending room:', response.status, error);
+                    
+                    this.enableNotificationButtons();
+                    this.showToast('Lỗi kết thúc phòng. Vui lòng thử lại.', 'error');
+                }
+            } catch (error) {
+                console.error('⏰ Error ending room:', error);
+                this.enableNotificationButtons();
+                this.showToast('Lỗi kết thúc phòng. Vui lòng thử lại.', 'error');
             }
-        } catch (error) {
-            console.error('⏰ Error sending response:', error);
-            
-            // ✅ SỬA: Enable buttons lại khi có lỗi
-            this.enableNotificationButtons();
-            
-            this.showToast('Lỗi kết nối. Vui lòng thử lại.', 'error');
+            return;
         }
     }
     

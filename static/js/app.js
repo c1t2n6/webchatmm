@@ -4,12 +4,15 @@ console.log("=== MAPMO APP LOADED ===");
 // Import modules
 import { AuthModule } from './modules/auth.js';
 import { ProfileModule } from './modules/profile.js';
-// ChatModule is loaded as a global script
+import { ProfileEditModule } from './modules/profile-edit.js';
+// Import ChatModule
+import { ChatModule } from './modules/chat_refactored.js';
 import { LikeModule } from './modules/like.js';
 // import { NotificationModule } from './modules/notification.js'; // Removed - replaced by SimpleCountdownModule
 import { SimpleCountdownModuleV2 } from './modules/simple_countdown_v2.js';
 import { UIModule } from './modules/ui.js';
 import { UtilsModule } from './modules/utils.js';
+import { TimerManager } from './modules/timer_manager.js';
 
 class MapmoApp {
     constructor() {
@@ -17,22 +20,23 @@ class MapmoApp {
         this.currentUser = null;
         this.currentRoom = null;
         
+        // ✅ THÊM: Flag để track profile wizard state
+        this.showingProfileWizard = false;
+        
+        // ✅ THÊM: Flag để tránh duplicate event listeners
+        this.eventsBound = false;
+        
         // Initialize modules
         console.log('🔍 App - Initializing modules...');
         this.authModule = new AuthModule(this);
         this.profileModule = new ProfileModule(this);
+        this.profileEditModule = new ProfileEditModule(this);
         
-        // Check if ChatModule is available
-        if (typeof window.ChatModule !== 'undefined') {
-            console.log('✅ ChatModule found, initializing...');
-            this.chatModule = new window.ChatModule(this);
-            // Khởi tạo ChatModule
-            this.chatModule.init();
-        } else {
-            console.error('❌ ChatModule not found! Waiting for it...');
-            // Wait for ChatModule to be available
-            this.waitForChatModule();
-        }
+        // Initialize ChatModule
+        console.log('✅ ChatModule found, initializing...');
+        this.chatModule = new ChatModule(this);
+        // Initialize ChatModule
+        this.chatModule.init();
         
         this.likeModule = new LikeModule(this);
         // this.notificationModule = new NotificationModule(this); // Removed - replaced by SimpleCountdownModule
@@ -52,10 +56,8 @@ class MapmoApp {
     }
     
     // ✅ THÊM: Khởi tạo TimerManager
-    async initTimerManager() {
+    initTimerManager() {
         try {
-            // Import TimerManager module
-            const { TimerManager } = await import('./modules/timer_manager.js');
             this.timerManager = new TimerManager();
             console.log('🔍 App - TimerManager initialized successfully');
         } catch (error) {
@@ -78,10 +80,22 @@ class MapmoApp {
         this.authModule.checkAuthStatus();
         console.log('🔍 App - checkAuthStatus() called');
         this.uiModule.setupDarkMode();
+        
+        // ✅ THÊM: Initialize profile edit module
+        this.profileEditModule.init();
+        
         console.log('🔍 App - init() completed');
     }
 
     bindEvents() {
+        // ✅ THÊM: Tránh duplicate event listeners
+        if (this.eventsBound) {
+            console.log('🔍 App - Events already bound, skipping');
+            return;
+        }
+        
+        console.log('🔍 App - Binding events...');
+        
         // Landing page buttons
         const chatBtn = document.getElementById('chatBtn');
         const voiceBtn = document.getElementById('voiceBtn');
@@ -204,6 +218,10 @@ class MapmoApp {
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => this.authModule.logout());
         }
+        
+        // ✅ THÊM: Đánh dấu events đã được bind
+        this.eventsBound = true;
+        console.log('🔍 App - Events bound successfully');
     }
 
     // Navigation
@@ -240,7 +258,8 @@ class MapmoApp {
     }
 
     showProfile() {
-        this.utilsModule.showError('Tính năng chỉnh sửa hồ sơ sẽ ra mắt sớm!');
+        console.log('🔍 App - showProfile() called');
+        this.profileEditModule.showProfileEdit();
     }
 
     // Delegate methods to modules
@@ -260,18 +279,7 @@ class MapmoApp {
         this.uiModule.hideProfileWizard();
     }
 
-    showWaitingRoom() {
-        this.uiModule.showWaitingRoom();
-    }
-
-    showSearching() {
-        this.uiModule.showSearching();
-    }
-
-    showChatRoom() {
-        console.log('🔍 App - showChatRoom called');
-        this.uiModule.showChatRoom();
-    }
+    // Removed duplicate methods - using UIModule directly
 
     showEndChatModal() {
         this.uiModule.showEndChatModal();
@@ -285,72 +293,15 @@ class MapmoApp {
         this.uiModule.hideModal(modalId);
     }
 
-    showError(message) {
-        this.utilsModule.showError(message);
-    }
+    // Removed duplicate methods - using UtilsModule directly
 
-    showSuccess(message) {
-        this.utilsModule.showSuccess(message);
-    }
+    // Removed duplicate methods - using UtilsModule directly
 
-    escapeHtml(text) {
-        return this.utilsModule.escapeHtml(text);
-    }
+    // Removed duplicate methods - using ChatModule directly
 
-    formatTime(timestamp) {
-        return this.utilsModule.formatTime(timestamp);
-    }
-
-    connectChatWebSocket(roomId) {
-        console.log('🔍 App - connectChatWebSocket called with roomId:', roomId);
-        this.chatModule.connectChatWebSocket(roomId);
-    }
-
-    disconnectWebSocket() {
-        this.chatModule.disconnectWebSocket();
-    }
-
-    showLikeModal() {
-        this.likeModule.showLikeModal();
-    }
-
-    handleImageReveal(data) {
-        this.utilsModule.handleImageReveal(data);
-    }
-
-    handleChatEnded() {
-        this.utilsModule.handleChatEnded();
-    }
+    // Removed duplicate methods - using modules directly
     
-    // Wait for ChatModule to be available
-    waitForChatModule() {
-        console.log('🔍 Waiting for ChatModule...');
-        const checkInterval = setInterval(() => {
-            if (typeof window.ChatModule !== 'undefined') {
-                console.log('✅ ChatModule found! Initializing...');
-                clearInterval(checkInterval);
-                this.chatModule = new window.ChatModule(this);
-                // Khởi tạo ChatModule
-                this.chatModule.init();
-                console.log('✅ ChatModule initialized successfully!');
-            }
-        }, 100);
-        
-        // Timeout after 5 seconds
-        setTimeout(() => {
-            clearInterval(checkInterval);
-            if (!this.chatModule || typeof this.chatModule.startSearch === 'undefined') {
-                console.error('❌ ChatModule still not available after timeout!');
-                // Create fallback
-                this.chatModule = {
-                    startSearch: () => this.utilsModule.showError('ChatModule not loaded'),
-                    cancelSearch: () => this.utilsModule.showError('ChatModule not loaded'),
-                    handleWebSocketMessage: () => console.error('ChatModule not loaded'),
-                    handleRoomEndedByUser: () => console.error('ChatModule not loaded')
-                };
-            }
-        }, 5000);
-    }
+    // Removed waitForChatModule - no longer needed with direct import
 }
 
 // Initialize the application when DOM is loaded

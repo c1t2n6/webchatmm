@@ -1,0 +1,202 @@
+// Database connection and setup
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+const fs = require('fs');
+
+class Database {
+  constructor() {
+    this.db = null;
+    this.dbPath = path.join(__dirname, '../../app.db');
+  }
+
+  async connect() {
+    return new Promise((resolve, reject) => {
+      this.db = new sqlite3.Database(this.dbPath, (err) => {
+        if (err) {
+          console.error('❌ Database connection error:', err);
+          reject(err);
+        } else {
+          console.log('✅ Connected to SQLite database');
+          resolve();
+        }
+      });
+    });
+  }
+
+  async createTables() {
+    const createUsersTable = `
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        password_hash VARCHAR(128),
+        google_id VARCHAR(128) UNIQUE,
+        email VARCHAR(120) UNIQUE,
+        is_verified BOOLEAN DEFAULT 0,
+        nickname VARCHAR(50) UNIQUE NOT NULL,
+        dob DATE NOT NULL,
+        gender VARCHAR(10) NOT NULL,
+        preferred_gender TEXT,
+        needs TEXT,
+        interests TEXT,
+        profile_completed BOOLEAN DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'idle',
+        online_status BOOLEAN DEFAULT 0,
+        current_room_id INTEGER,
+        avatar_url VARCHAR(255) DEFAULT 'default_avatar.jpg',
+        reports_count INTEGER DEFAULT 0,
+        banned_until DATE,
+        role VARCHAR(20) DEFAULT 'free',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (current_room_id) REFERENCES rooms(id)
+      )
+    `;
+
+    const createRoomsTable = `
+      CREATE TABLE IF NOT EXISTS rooms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type VARCHAR(10) NOT NULL DEFAULT 'chat',
+        user1_id INTEGER NOT NULL,
+        user2_id INTEGER NOT NULL,
+        start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+        end_time DATETIME,
+        like_responses TEXT,
+        keep_active_responses TEXT,
+        reveal_level INTEGER DEFAULT 0,
+        keep_active BOOLEAN DEFAULT 0,
+        last_message_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user1_id) REFERENCES users(id),
+        FOREIGN KEY (user2_id) REFERENCES users(id)
+      )
+    `;
+
+    const createMessagesTable = `
+      CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        room_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (room_id) REFERENCES rooms(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `;
+
+    const createReportsTable = `
+      CREATE TABLE IF NOT EXISTS reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reporter_id INTEGER NOT NULL,
+        reported_user_id INTEGER NOT NULL,
+        room_id INTEGER,
+        reason TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (reporter_id) REFERENCES users(id),
+        FOREIGN KEY (reported_user_id) REFERENCES users(id),
+        FOREIGN KEY (room_id) REFERENCES rooms(id)
+      )
+    `;
+
+    const createMatchingQueueTable = `
+      CREATE TABLE IF NOT EXISTS matching_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER UNIQUE NOT NULL,
+        type VARCHAR(10) NOT NULL DEFAULT 'chat',
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        retry_count INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `;
+
+    const createIcebreakersTable = `
+      CREATE TABLE IF NOT EXISTS icebreakers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        interest VARCHAR(50) NOT NULL,
+        prompt TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
+    const tables = [
+      createUsersTable,
+      createRoomsTable,
+      createMessagesTable,
+      createReportsTable,
+      createMatchingQueueTable,
+      createIcebreakersTable
+    ];
+
+    for (const table of tables) {
+      await this.run(table);
+    }
+
+    console.log('✅ Database tables created successfully');
+  }
+
+  run(sql, params = []) {
+    return new Promise((resolve, reject) => {
+      this.db.run(sql, params, function(err) {
+        if (err) {
+          console.error('❌ Database error:', err);
+          reject(err);
+        } else {
+          resolve({ id: this.lastID, changes: this.changes });
+        }
+      });
+    });
+  }
+
+  get(sql, params = []) {
+    return new Promise((resolve, reject) => {
+      this.db.get(sql, params, (err, row) => {
+        if (err) {
+          console.error('❌ Database error:', err);
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+  }
+
+  all(sql, params = []) {
+    return new Promise((resolve, reject) => {
+      this.db.all(sql, params, (err, rows) => {
+        if (err) {
+          console.error('❌ Database error:', err);
+          reject(err);
+        } else {
+          resolve(rows);
+        }
+      });
+    });
+  }
+
+  async close() {
+    return new Promise((resolve) => {
+      if (this.db) {
+        this.db.close((err) => {
+          if (err) {
+            console.error('❌ Database close error:', err);
+          } else {
+            console.log('✅ Database connection closed');
+          }
+          this.db = null;
+          resolve();
+        });
+      } else {
+        resolve();
+      }
+    });
+  }
+
+  // Get database statistics
+  getStats() {
+    return {
+      connected: this.db !== null,
+      path: this.dbPath
+    };
+  }
+}
+
+module.exports = Database;

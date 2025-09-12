@@ -126,6 +126,6 @@ export class LikeModule {
     }
 
     showImageReveal() {
-        this.app.showSuccess('Cả hai đều thích nhau! Ảnh sẽ được mở khóa dần dần.');
+        this.app.utilsModule.showSuccess('Cả hai đều thích nhau! Ảnh sẽ được mở khóa dần dần.');
     }
 }
