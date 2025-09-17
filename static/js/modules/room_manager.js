@@ -32,6 +32,11 @@ export class RoomManager {
         this.lastSearchTime = now;
         this.searchStartTime = now;
         
+        // Update user status to searching
+        if (this.app.currentUser) {
+            this.app.currentUser.status = 'searching';
+        }
+        
         // Create search promise to prevent concurrent searches
         this.searchPromise = this.performSearch();
         
@@ -117,6 +122,11 @@ export class RoomManager {
             this.isSearching = false;
             this.clearSearchTimeout();
             this.stopSearchProgress();
+            
+            // Reset user status if search failed
+            if (this.app.currentUser && this.app.currentUser.status === 'searching') {
+                this.app.currentUser.status = 'idle';
+            }
         }
     }
 
@@ -139,6 +149,12 @@ export class RoomManager {
 
     handleSearchTimeout() {
         console.log('⏰ Room - Search timeout reached');
+        
+        // Reset user status
+        if (this.app.currentUser && this.app.currentUser.status === 'searching') {
+            this.app.currentUser.status = 'idle';
+        }
+        
         this.cancelSearch();
         this.app.utilsModule.showError('Không tìm thấy người chat. Vui lòng thử lại sau.');
     }

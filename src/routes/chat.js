@@ -194,6 +194,41 @@ router.get('/current-room', authenticateToken, async (req, res) => {
   }
 });
 
+// Get user search status
+router.get('/search-status', authenticateToken, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // Get fresh user data from database
+    const freshUser = await userModel.findById(currentUser.id);
+    if (!freshUser) {
+      return res.status(404).json({
+        error: 'User not found',
+        detail: 'Không tìm thấy user'
+      });
+    }
+
+    // Check if user is currently searching
+    const isSearching = global.matchingService && global.matchingService.searchingUsers.has(freshUser.id);
+    const queueStatus = global.matchingService ? global.matchingService.getQueueStatus() : null;
+
+    res.json({
+      user_id: freshUser.id,
+      status: freshUser.status,
+      is_searching: isSearching,
+      current_room_id: freshUser.current_room_id,
+      queue_status: queueStatus
+    });
+
+  } catch (error) {
+    console.error('Get search status error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      detail: 'Lỗi lấy trạng thái tìm kiếm: ' + error.message
+    });
+  }
+});
+
 // Get room messages
 router.get('/room/:roomId/messages', authenticateToken, async (req, res) => {
   try {

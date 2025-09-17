@@ -123,6 +123,42 @@ class ChatModule {
             return true;
         }
         
+        // Check if user is currently searching
+        if (this.app.currentUser) {
+            console.log('🔍 Chat - Checking if user is currently searching...');
+            
+            try {
+                const response = await fetch('/chat/search-status', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                
+                if (response.ok) {
+                    const searchData = await response.json();
+                    console.log('🔍 Chat - Search status response:', searchData);
+                    
+                    if (searchData.is_searching) {
+                        console.log('🔍 Chat - User is currently searching, restoring search UI...');
+                        
+                        // Update user status
+                        this.app.currentUser.status = 'searching';
+                        
+                        // Show searching UI
+                        this.app.uiModule.showSearching();
+                        
+                        // Connect to WebSocket to receive match notifications
+                        this.app.websocketManager.connect();
+                        
+                        this.roomManager.isRestoringState = false;
+                        return true;
+                    }
+                } else {
+                    console.log('🔍 Chat - Search status API failed:', response.status);
+                }
+            } catch (error) {
+                console.error('🔍 Chat - Error checking search status:', error);
+            }
+        }
+        
         // If user doesn't have current_room_id or status is not connected
         if (this.app.currentUser) {
             console.log('🔍 Chat - User status is not connected or no current_room_id, checking for active rooms...');
