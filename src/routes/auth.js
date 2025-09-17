@@ -42,12 +42,30 @@ router.post('/signup', authLimiter, validateSignup, async (req, res) => {
       });
     }
 
-    // Create new user
+    // Check if email already exists
+    const existingEmail = await userModel.findByEmail(email);
+    if (existingEmail) {
+      return res.status(400).json({
+        error: 'Validation error',
+        detail: 'Email đã được sử dụng'
+      });
+    }
+
+    // Generate unique nickname
+    let nickname = `user_${username}`;
+    let counter = 1;
+    
+    // Check if nickname already exists and generate unique one
+    while (await userModel.findByNickname(nickname)) {
+      nickname = `user_${username}_${counter}`;
+      counter++;
+    }
+
     const userData = {
       username,
       password,
       email,
-      nickname: `user_${username}`,
+      nickname,
       dob: '1990-01-01',
       gender: 'Khác',
       preferred_gender: [],
@@ -57,7 +75,34 @@ router.post('/signup', authLimiter, validateSignup, async (req, res) => {
       role: 'free'
     };
 
-    const newUser = await userModel.create(userData);
+    // Create user with retry mechanism for race conditions
+    let newUser;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        newUser = await userModel.create(userData);
+        break; // Success, exit retry loop
+      } catch (error) {
+        if (error.code === 'SQLITE_CONSTRAINT' && retryCount < maxRetries - 1) {
+          // Race condition detected, regenerate nickname and retry
+          retryCount++;
+          console.log(`Signup race condition detected, retry ${retryCount}/${maxRetries}`);
+          
+          // Regenerate nickname for retry
+          let newNickname = `user_${username}_${Date.now()}`;
+          let counter = 1;
+          while (await userModel.findByNickname(newNickname)) {
+            newNickname = `user_${username}_${Date.now()}_${counter}`;
+            counter++;
+          }
+          userData.nickname = newNickname;
+        } else {
+          throw error; // Re-throw if not a constraint error or max retries reached
+        }
+      }
+    }
 
     // Generate token
     const token = generateToken(newUser);
@@ -82,6 +127,27 @@ router.post('/signup', authLimiter, validateSignup, async (req, res) => {
 
   } catch (error) {
     console.error('Signup error:', error);
+    
+    // Handle specific database constraint errors
+    if (error.code === 'SQLITE_CONSTRAINT') {
+      if (error.message.includes('username')) {
+        return res.status(400).json({
+          error: 'Username already exists',
+          detail: 'Tên đăng nhập đã được sử dụng. Vui lòng chọn tên khác.'
+        });
+      } else if (error.message.includes('email')) {
+        return res.status(400).json({
+          error: 'Email already exists',
+          detail: 'Email đã được sử dụng. Vui lòng sử dụng email khác.'
+        });
+      } else if (error.message.includes('nickname')) {
+        return res.status(400).json({
+          error: 'Nickname already exists',
+          detail: 'Biệt danh đã được sử dụng. Vui lòng thử lại.'
+        });
+      }
+    }
+    
     res.status(500).json({
       error: 'Internal server error',
       detail: 'Lỗi tạo tài khoản: ' + error.message

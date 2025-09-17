@@ -162,6 +162,34 @@ app.get('/default_avatar.jpg', (req, res) => {
   res.send(svg);
 });
 
+// Robots.txt endpoint
+app.get('/robots.txt', (req, res) => {
+  const robots = `User-agent: *
+Allow: /
+
+Sitemap: ${process.env.BASE_URL || 'https://webchat-nodejs-draft.onrender.com'}/sitemap.xml`;
+  
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(robots);
+});
+
+// Apple touch icon endpoints
+app.get('/apple-touch-icon.png', (req, res) => {
+  res.redirect('/default_avatar.jpg');
+});
+
+app.get('/apple-touch-icon-precomposed.png', (req, res) => {
+  res.redirect('/default_avatar.jpg');
+});
+
+app.get('/apple-touch-icon-120x120.png', (req, res) => {
+  res.redirect('/default_avatar.jpg');
+});
+
+app.get('/apple-touch-icon-120x120-precomposed.png', (req, res) => {
+  res.redirect('/default_avatar.jpg');
+});
+
 // Routes
 app.use('/auth', authRouter);
 app.use('/chat', chatRouter);
