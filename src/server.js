@@ -144,6 +144,24 @@ app.get('/health', (req, res) => {
   }
 });
 
+// Favicon endpoint
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end(); // No content response for favicon
+});
+
+// Default avatar endpoint - serve a simple placeholder
+app.get('/default_avatar.jpg', (req, res) => {
+  // Return a simple SVG as default avatar
+  const svg = `<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" fill="#F3F4F6"/>
+    <circle cx="50" cy="35" r="15" fill="#9B9BA0"/>
+    <path d="M20 80C20 65.6406 32.6406 53 47 53H53C67.3594 53 80 65.6406 80 80V100H20V80Z" fill="#9B9BA0"/>
+  </svg>`;
+  
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.send(svg);
+});
+
 // Routes
 app.use('/auth', authRouter);
 app.use('/chat', chatRouter);

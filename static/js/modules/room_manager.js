@@ -12,19 +12,37 @@ export class RoomManager {
         this.maxSearchTime = 30000; // 30 seconds
         this.lastMatchRoomId = null;
         this.countdownStarted = false; // ✅ THÊM: Flag để tránh duplicate countdown
+        this.searchPromise = null; // ✅ THÊM: Promise để tránh concurrent searches
     }
 
     async startSearch() {
         const now = Date.now();
-        if (this.isSearching || (now - this.lastSearchTime < 2000)) {
+        if (this.isSearching || (now - this.lastSearchTime < 3000)) {
             console.log('🏠 Room - Search already in progress or too soon, skipping');
             return;
+        }
+        
+        // Additional check to prevent rapid successive calls
+        if (this.searchPromise) {
+            console.log('🏠 Room - Search promise already exists, waiting for completion');
+            return this.searchPromise;
         }
         
         this.isSearching = true;
         this.lastSearchTime = now;
         this.searchStartTime = now;
         
+        // Create search promise to prevent concurrent searches
+        this.searchPromise = this.performSearch();
+        
+        try {
+            await this.searchPromise;
+        } finally {
+            this.searchPromise = null;
+        }
+    }
+    
+    async performSearch() {
         // Clear any existing timeout
         this.clearSearchTimeout();
         

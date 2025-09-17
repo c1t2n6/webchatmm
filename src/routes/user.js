@@ -293,6 +293,28 @@ router.get('/profile/stats', authenticateToken, async (req, res) => {
   }
 });
 
+// Alias for /user/stats (for frontend compatibility)
+router.get('/stats', authenticateToken, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // Get user's room statistics
+    const roomStats = await userModel.getRoomStats(currentUser.id);
+    
+    res.json({
+      user_id: currentUser.id,
+      stats: roomStats
+    });
+
+  } catch (error) {
+    console.error('Get user stats error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      detail: 'Lỗi lấy thống kê user: ' + error.message
+    });
+  }
+});
+
 // Delete user account
 router.delete('/delete', authenticateToken, async (req, res) => {
   try {
