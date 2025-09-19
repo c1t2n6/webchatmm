@@ -123,9 +123,13 @@ export class MessageHandler {
     }
 
     setupTypingListeners() {
+        // Remove existing listeners first
+        this.removeTypingListeners();
+        
         const input = document.getElementById('messageInput');
         if (!input) {
-            console.log('💬 Message - messageInput element not found, cannot setup typing listeners');
+            console.log('💬 Message - messageInput element not found, retrying in 100ms');
+            setTimeout(() => this.setupTypingListeners(), 100);
             return;
         }
         console.log('💬 Message - Setting up typing listeners for input:', input);
@@ -167,27 +171,18 @@ export class MessageHandler {
         });
         
         console.log('💬 Message - Typing listeners setup completed');
-
-        // Send stop typing when input loses focus
-        input.addEventListener('blur', () => {
-            clearTimeout(typingTimeout);
-            this.isTyping = false;
-            if (this.app.websocketManager.isConnected()) {
-                this.sendStopTypingIndicator();
-            }
-        });
-
-        // Send stop typing when pressing Enter
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                clearTimeout(typingTimeout);
-                this.isTyping = false;
-                if (this.app.websocketManager.isConnected()) {
-                    this.sendStopTypingIndicator();
-                }
-            }
-        });
     }
+
+    removeTypingListeners() {
+        const input = document.getElementById('messageInput');
+        if (input) {
+            // Clone the input to remove all event listeners
+            const newInput = input.cloneNode(true);
+            input.parentNode.replaceChild(newInput, input);
+            console.log('💬 Message - Removed existing typing listeners');
+        }
+    }
+
 
     addMessageToChat(message) {
         // ATOMIC MESSAGE ADDING - No complex validation
