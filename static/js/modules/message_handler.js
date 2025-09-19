@@ -222,8 +222,8 @@ export class MessageHandler {
             const typingDiv = document.createElement('div');
             typingDiv.className = 'flex justify-start typing-indicator';
             typingDiv.innerHTML = `
-                <div class="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg">
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Đang nhập...</p>
+                <div class="px-4 py-2 typing-bubble rounded-lg">
+                    <p class="text-sm">Đang nhập<span class="typing-dots"></span></p>
                 </div>
             `;
             chatMessages.appendChild(typingDiv);
@@ -238,6 +238,25 @@ export class MessageHandler {
         if (typingElement) {
             typingElement.remove();
         }
+    }
+    
+    // Test function for typing indicator
+    testTypingIndicator() {
+        console.log('🧪 Testing typing indicator...');
+        
+        // Simulate typing from another user
+        const testData = {
+            user_id: 'test_user_123',
+            is_typing: true
+        };
+        
+        this.handleTypingIndicator(testData);
+        
+        // Hide after 3 seconds
+        setTimeout(() => {
+            this.hideTypingIndicator('test_user_123');
+            console.log('🧪 Typing indicator test completed');
+        }, 3000);
     }
 
     clearTypingState() {

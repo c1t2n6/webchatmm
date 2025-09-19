@@ -40,6 +40,36 @@
         .typing-indicator {
             animation: pulse 1.5s infinite;
         }
+        
+        /* Enhanced typing indicator for video background */
+        .typing-indicator .typing-bubble {
+            background: rgba(255, 255, 255, 0.9) !important;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #374151;
+        }
+        
+        .dark .typing-indicator .typing-bubble {
+            background: rgba(0, 0, 0, 0.8) !important;
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #e5e7eb;
+        }
+        
+        /* Typing dots animation */
+        .typing-dots {
+            display: inline-block;
+        }
+        
+        .typing-dots::after {
+            content: '...';
+            animation: typingDots 1.5s infinite;
+        }
+        
+        @keyframes typingDots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
         .reveal-progress {
             transition: width 0.3s ease-in-out;
         }
@@ -748,6 +778,7 @@
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="/static/js/video-background.js"></script>
+    <script src="/static/js/test-typing.js"></script>
     <script type="module" src="/static/js/app.js?v=8.3.0"></script>
     </div> <!-- End main-content -->
 </body>
