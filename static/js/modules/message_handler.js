@@ -105,6 +105,7 @@ export class MessageHandler {
 
         // Auto-stop typing after 3 seconds
         this.typingTimer = setTimeout(() => {
+            console.log('💬 Message - Auto-stopping typing indicator after 3 seconds');
             this.sendStopTypingIndicator();
         }, 3000);
     }
@@ -144,6 +145,7 @@ export class MessageHandler {
             // Reset timer on each keystroke
             clearTimeout(typingTimeout);
             typingTimeout = setTimeout(() => {
+                console.log('💬 Message - Stopping typing indicator after 1 second of inactivity');
                 this.isTyping = false;
                 this.sendStopTypingIndicator();
             }, 1000);
@@ -242,17 +244,26 @@ export class MessageHandler {
             chatMessages.appendChild(typingDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
             console.log('💬 Message - Typing indicator added to chat');
+            console.log('💬 Message - Typing element:', typingDiv);
+            console.log('💬 Message - Chat messages container:', chatMessages);
         } else {
             console.log('💬 Message - Typing indicator already exists');
         }
     }
 
     hideTypingIndicator(userId) {
-        if (userId === this.app.currentUser.id) return;
+        console.log('💬 Message - hideTypingIndicator called for user:', userId);
+        if (userId === this.app.currentUser.id) {
+            console.log('💬 Message - Ignoring hide typing indicator for own user');
+            return;
+        }
         
         const typingElement = document.querySelector('.typing-indicator');
         if (typingElement) {
+            console.log('💬 Message - Removing typing indicator element');
             typingElement.remove();
+        } else {
+            console.log('💬 Message - No typing indicator element found to remove');
         }
     }
     
@@ -266,7 +277,7 @@ export class MessageHandler {
             is_typing: true
         };
         
-        this.handleTypingIndicator(testData);
+        this.showTypingIndicator('test_user_123');
         
         // Hide after 3 seconds
         setTimeout(() => {
@@ -291,5 +302,13 @@ export class MessageHandler {
             console.log('💬 Message - Chat messages cleared');
         }
     }
-
 }
+
+// Global test function
+window.testTypingIndicator = function() {
+    if (window.app && window.app.messageHandler) {
+        window.app.messageHandler.testTypingIndicator();
+    } else {
+        console.error('💬 Message - App or messageHandler not available');
+    }
+};
