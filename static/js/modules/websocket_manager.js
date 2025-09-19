@@ -65,6 +65,10 @@ export class WebSocketManager {
         });
 
         this.websocket.on('message', (data) => {
+            // Debug typing messages
+            if (data.type === 'typing' || data.type === 'stop_typing') {
+                console.log('🔌 WebSocket - Received typing message:', data);
+            }
             // ATOMIC MESSAGE HANDLING - Direct pass, no logging spam
             this.app.chatModule.handleWebSocketMessage(data);
         });
@@ -136,7 +140,12 @@ export class WebSocketManager {
             return false;
         }
 
-        console.log('🔌 WebSocket - Sending message:', messageData);
+        // Debug typing messages
+        if (messageData.type === 'typing' || messageData.type === 'stop_typing') {
+            console.log('🔌 WebSocket - Sending typing message:', messageData);
+        } else {
+            console.log('🔌 WebSocket - Sending message:', messageData);
+        }
         this.websocket.emit('message', messageData, callback);
         return true;
     }

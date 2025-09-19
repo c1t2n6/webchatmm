@@ -54,8 +54,8 @@ export class KeepActiveStateManager {
         });
         
         // Periodic sync
-        setInterval(() => {
-            if (this.state.isOnline && this.state.currentRoomId) {
+        this.syncInterval = setInterval(() => {
+            if (this.state.isOnline && this.state.currentRoomId && !this.state.roomEnded) {
                 this.syncWithBackend();
             }
         }, this.cacheSettings.syncInterval);
@@ -395,6 +395,15 @@ export class KeepActiveStateManager {
         
         // Reset button
         this.resetKeepActiveButton(roomId);
+        
+        // Stop sync interval if this is the current room
+        if (this.state.currentRoomId === roomId) {
+            this.state.roomEnded = true;
+            if (this.syncInterval) {
+                clearInterval(this.syncInterval);
+                this.syncInterval = null;
+            }
+        }
     }
     
     /**
