@@ -600,8 +600,12 @@ class ChatModule {
 
     processTyping(data) {
         // SIMPLE TYPING PROCESSING
+        console.log('💬 Chat - Received typing indicator:', data);
         if (data.user_id && data.user_id !== this.app.currentUser.id) {
-            this.messageHandler.handleTypingIndicator(data);
+            console.log('💬 Chat - Showing typing indicator for user:', data.user_id);
+            this.messageHandler.showTypingIndicator(data.user_id);
+        } else {
+            console.log('💬 Chat - Ignoring typing indicator (own message or no user_id)');
         }
     }
 

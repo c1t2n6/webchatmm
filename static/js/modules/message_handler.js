@@ -81,6 +81,7 @@ export class MessageHandler {
     sendTypingIndicator() {
         // Prevent spam - only send if not already typing
         if (this.isTyping) {
+            console.log('💬 Message - Already typing, skipping');
             return;
         }
         
@@ -92,10 +93,14 @@ export class MessageHandler {
         // Send typing indicator
         if (this.app.websocketManager.isConnected()) {
             this.isTyping = true;
+            console.log('💬 Message - Sending typing indicator');
             this.app.websocketManager.sendMessage({
                 type: 'typing',
-                is_typing: true
+                is_typing: true,
+                user_id: this.app.currentUser.id
             });
+        } else {
+            console.log('💬 Message - WebSocket not connected, cannot send typing indicator');
         }
 
         // Auto-stop typing after 3 seconds
@@ -114,7 +119,8 @@ export class MessageHandler {
             this.isTyping = false;
             this.app.websocketManager.sendMessage({
                 type: 'typing',
-                is_typing: false
+                is_typing: false,
+                user_id: this.app.currentUser.id
             });
             console.log('💬 Message - Sent stop typing indicator');
         }
@@ -125,21 +131,20 @@ export class MessageHandler {
         if (!input) return;
 
         let typingTimeout;
-        let isTyping = false;
 
         // Debounced typing indicator
         const handleTyping = () => {
             if (!this.app.websocketManager.isConnected()) return;
             
-            if (!isTyping) {
-                isTyping = true;
+            if (!this.isTyping) {
+                this.isTyping = true;
                 this.sendTypingIndicator();
             }
             
             // Reset timer on each keystroke
             clearTimeout(typingTimeout);
             typingTimeout = setTimeout(() => {
-                isTyping = false;
+                this.isTyping = false;
                 this.sendStopTypingIndicator();
             }, 1000);
         };
@@ -150,7 +155,7 @@ export class MessageHandler {
         // Send stop typing when input loses focus
         input.addEventListener('blur', () => {
             clearTimeout(typingTimeout);
-            isTyping = false;
+            this.isTyping = false;
             if (this.app.websocketManager.isConnected()) {
                 this.sendStopTypingIndicator();
             }
@@ -212,13 +217,21 @@ export class MessageHandler {
     }
 
     showTypingIndicator(userId) {
-        if (userId === this.app.currentUser.id) return;
+        console.log('💬 Message - showTypingIndicator called for user:', userId);
+        if (userId === this.app.currentUser.id) {
+            console.log('💬 Message - Ignoring typing indicator for own user');
+            return;
+        }
         
         const typingElement = document.querySelector('.typing-indicator');
         if (!typingElement) {
             const chatMessages = document.getElementById('chatMessages');
-            if (!chatMessages) return;
+            if (!chatMessages) {
+                console.log('💬 Message - Chat messages container not found');
+                return;
+            }
             
+            console.log('💬 Message - Creating typing indicator element');
             const typingDiv = document.createElement('div');
             typingDiv.className = 'flex justify-start typing-indicator';
             typingDiv.innerHTML = `
@@ -228,6 +241,9 @@ export class MessageHandler {
             `;
             chatMessages.appendChild(typingDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
+            console.log('💬 Message - Typing indicator added to chat');
+        } else {
+            console.log('💬 Message - Typing indicator already exists');
         }
     }
 
