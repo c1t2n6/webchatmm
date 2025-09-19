@@ -135,11 +135,19 @@ export class MessageHandler {
 
         // Debounced typing indicator
         const handleTyping = () => {
-            if (!this.app.websocketManager.isConnected()) return;
+            console.log('💬 Message - handleTyping called, isTyping:', this.isTyping, 'WebSocket connected:', this.app.websocketManager.isConnected());
+            
+            if (!this.app.websocketManager.isConnected()) {
+                console.log('💬 Message - WebSocket not connected, skipping typing indicator');
+                return;
+            }
             
             if (!this.isTyping) {
+                console.log('💬 Message - Starting typing indicator');
                 this.isTyping = true;
                 this.sendTypingIndicator();
+            } else {
+                console.log('💬 Message - Already typing, resetting timer');
             }
             
             // Reset timer on each keystroke
@@ -152,7 +160,10 @@ export class MessageHandler {
         };
 
         // Send typing indicator when starting to type
-        input.addEventListener('input', handleTyping);
+        input.addEventListener('input', (e) => {
+            console.log('💬 Message - Input event triggered:', e.target.value);
+            handleTyping();
+        });
 
         // Send stop typing when input loses focus
         input.addEventListener('blur', () => {
