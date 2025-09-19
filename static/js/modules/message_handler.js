@@ -79,11 +79,7 @@ export class MessageHandler {
     }
 
     sendTypingIndicator() {
-        // Prevent spam - only send if not already typing
-        if (this.isTyping) {
-            console.log('💬 Message - Already typing, skipping');
-            return;
-        }
+        console.log('💬 Message - sendTypingIndicator called, isTyping:', this.isTyping);
         
         // Clear existing timer
         if (this.typingTimer) {
@@ -92,7 +88,6 @@ export class MessageHandler {
 
         // Send typing indicator
         if (this.app.websocketManager.isConnected()) {
-            this.isTyping = true;
             console.log('💬 Message - Sending typing indicator');
             this.app.websocketManager.sendMessage({
                 type: 'typing',
@@ -148,6 +143,8 @@ export class MessageHandler {
                 this.sendTypingIndicator();
             } else {
                 console.log('💬 Message - Already typing, resetting timer');
+                // Still send typing indicator to keep it alive
+                this.sendTypingIndicator();
             }
             
             // Reset timer on each keystroke
