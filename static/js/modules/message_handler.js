@@ -13,9 +13,11 @@ export class MessageHandler {
     async sendMessage() {
         // ✅ THÊM: Debouncing để tránh gửi nhiều lần
         if (this.isSending) {
-            console.log('💬 Message - Already sending, ignoring duplicate');
+            console.log('💬 Message - Already sending, ignoring duplicate. isSending:', this.isSending);
             return;
         }
+        
+        console.log('💬 Message - Starting to send message');
         
         const input = document.getElementById('messageInput');
         const message = input.value.trim();
@@ -304,6 +306,11 @@ export class MessageHandler {
         console.log('💬 Message - Typing state cleared');
     }
 
+    resetSendingState() {
+        this.isSending = false;
+        console.log('💬 Message - Sending state reset');
+    }
+
     clearChatMessages() {
         const chatMessages = document.getElementById('chatMessages');
         if (chatMessages) {
@@ -317,6 +324,15 @@ export class MessageHandler {
 window.testTypingIndicator = function() {
     if (window.app && window.app.messageHandler) {
         window.app.messageHandler.testTypingIndicator();
+    } else {
+        console.error('💬 Message - App or messageHandler not available');
+    }
+};
+
+// Global reset function
+window.resetSendingState = function() {
+    if (window.app && window.app.messageHandler) {
+        window.app.messageHandler.resetSendingState();
     } else {
         console.error('💬 Message - App or messageHandler not available');
     }
