@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapmo.vn - Chat Ẩn Danh</title>
+    <link rel="stylesheet" href="/static/css/video-background.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -45,6 +46,18 @@
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    <!-- Video Background -->
+    <div class="video-background" id="videoBackground">
+        <video id="backgroundVideo" autoplay muted loop playsinline>
+            <source src="/static/videos/background-loop.mp4" type="video/mp4">
+            <!-- Fallback cho browsers không support video -->
+            Your browser does not support the video tag.
+        </video>
+        <div class="video-overlay"></div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
     <!-- Navigation -->
     <nav class="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -678,6 +691,8 @@
     </main>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/static/js/video-background.js"></script>
     <script type="module" src="/static/js/app.js?v=8.3.0"></script>
+    </div> <!-- End main-content -->
 </body>
 </html>
