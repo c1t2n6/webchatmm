@@ -51,7 +51,7 @@ router.post('/signup', authLimiter, validateSignup, async (req, res) => {
       });
     }
 
--    // Generate unique nickname
+    // Generate unique nickname
     let nickname = `user_${username}`;
     let counter = 1;
     
