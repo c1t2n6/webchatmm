@@ -165,7 +165,7 @@ export class MessageHandler {
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 clearTimeout(typingTimeout);
-                isTyping = false;
+                this.isTyping = false;
                 if (this.app.websocketManager.isConnected()) {
                     this.sendStopTypingIndicator();
                 }
