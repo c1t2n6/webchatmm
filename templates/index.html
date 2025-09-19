@@ -43,6 +43,62 @@
         .reveal-progress {
             transition: width 0.3s ease-in-out;
         }
+        
+        /* Transparent button styles for video background */
+        .transparent-button {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .transparent-button:hover {
+            background: rgba(255, 255, 255, 0.2) !important;
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .transparent-button:active {
+            transform: translateY(0);
+        }
+        
+        /* Dark mode transparent buttons */
+        .dark .transparent-button {
+            background: rgba(0, 0, 0, 0.2) !important;
+            border-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .dark .transparent-button:hover {
+            background: rgba(0, 0, 0, 0.3) !important;
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* Card transparency */
+        .transparent-card {
+            background: rgba(255, 255, 255, 0.05) !important;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .dark .transparent-card {
+            background: rgba(0, 0, 0, 0.1) !important;
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+        
+        /* Navigation transparency */
+        .transparent-nav {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .dark .transparent-nav {
+            background: rgba(0, 0, 0, 0.2) !important;
+            border-bottom-color: rgba(255, 255, 255, 0.05);
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
@@ -59,22 +115,22 @@
     <!-- Main Content -->
     <div class="main-content">
     <!-- Navigation -->
-    <nav class="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700">
+    <nav class="transparent-nav shadow-lg border-b border-gray-200 dark:border-gray-700">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <div class="flex items-center">
                     <h1 class="text-2xl font-bold text-primary">Mapmo.vn</h1>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <button id="darkModeToggle" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                    <button id="darkModeToggle" class="p-2 rounded-lg transparent-button">
                         <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
                         </svg>
                     </button>
-                    <button id="profileBtn" class="hidden px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                    <button id="profileBtn" class="hidden px-4 py-2 transparent-button">
                         Hồ sơ
                     </button>
-                    <button id="logoutBtn" class="hidden px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                    <button id="logoutBtn" class="hidden px-4 py-2 transparent-button">
                         Đăng xuất
                     </button>
                 </div>
@@ -95,13 +151,13 @@
                 </p>
                 
                 <div class="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-                    <button id="chatBtn" class="group p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary">
+                    <button id="chatBtn" class="group p-8 transparent-card rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary">
                         <div class="text-4xl mb-4">💬</div>
                         <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Chat Ẩn Danh</h3>
                         <p class="text-gray-600 dark:text-gray-300">Trò chuyện text với người lạ</p>
                     </button>
                     
-                    <button id="voiceBtn" class="group p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary">
+                    <button id="voiceBtn" class="group p-8 transparent-card rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary">
                         <div class="text-4xl mb-4">📞</div>
                         <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Voice Call</h3>
                         <p class="text-gray-600 dark:text-gray-300">Gọi thoại (Sắp ra mắt)</p>
@@ -189,7 +245,7 @@
         <!-- Profile Setup Wizard -->
         <div id="profileWizard" class="hidden">
             <div class="max-w-2xl mx-auto">
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                <div class="transparent-card rounded-2xl shadow-lg p-8">
                     <div class="mb-8">
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Thiết lập hồ sơ</h3>
@@ -365,7 +421,7 @@
         <!-- Profile Edit Section -->
         <div id="profileEdit" class="hidden">
             <div class="max-w-4xl mx-auto">
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                <div class="transparent-card rounded-2xl shadow-lg p-8">
                     <div class="flex items-center justify-between mb-8">
                         <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Chỉnh sửa hồ sơ</h3>
                         <button id="closeProfileEdit" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -571,12 +627,12 @@
         <!-- Waiting Room -->
         <div id="waitingRoom" class="hidden">
             <div class="max-w-2xl mx-auto text-center">
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                <div class="transparent-card rounded-2xl shadow-lg p-8">
                     <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Phòng chờ</h3>
                     <p class="text-gray-600 dark:text-gray-300 mb-8">Chọn cách kết nối với người khác</p>
                     
                     <div class="grid md:grid-cols-2 gap-6">
-                        <button id="startChat" class="p-6 bg-gradient-to-r from-primary to-secondary text-white rounded-xl hover:shadow-lg transition-all duration-300">
+                        <button id="startChat" class="p-6 transparent-button rounded-xl hover:shadow-lg transition-all duration-300">
                             <div class="text-3xl mb-3">💬</div>
                             <h4 class="text-xl font-semibold mb-2">Bắt đầu chat</h4>
                             <p class="text-sm opacity-90">Tìm kiếm người phù hợp</p>
@@ -595,11 +651,11 @@
         <!-- Searching -->
         <div id="searching" class="hidden">
             <div class="max-w-md mx-auto text-center">
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                <div class="transparent-card rounded-2xl shadow-lg p-8">
                     <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-6"></div>
                     <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Đang tìm kiếm...</h3>
                     <p class="text-gray-600 dark:text-gray-300 mb-6">Tìm kiếm người phù hợp với bạn</p>
-                    <button id="cancelSearch" class="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                    <button id="cancelSearch" class="px-6 py-2 transparent-button rounded-lg transition-colors">
                         Hủy tìm kiếm
                     </button>
                 </div>
