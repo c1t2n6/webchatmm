@@ -124,7 +124,11 @@ export class MessageHandler {
 
     setupTypingListeners() {
         const input = document.getElementById('messageInput');
-        if (!input) return;
+        if (!input) {
+            console.log('💬 Message - messageInput element not found, cannot setup typing listeners');
+            return;
+        }
+        console.log('💬 Message - Setting up typing listeners for input:', input);
 
         let typingTimeout;
 
@@ -161,6 +165,8 @@ export class MessageHandler {
             console.log('💬 Message - Input event triggered:', e.target.value);
             handleTyping();
         });
+        
+        console.log('💬 Message - Typing listeners setup completed');
 
         // Send stop typing when input loses focus
         input.addEventListener('blur', () => {
