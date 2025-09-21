@@ -350,8 +350,10 @@ router.post('/response/:roomId', authenticateToken, async (req, res) => {
       if (connectionManager) {
         await connectionManager.broadcastToRoom({
           type: 'room_ended',
-          message: 'Cuộc trò chuyện đã kết thúc.',
-          room_id: parseInt(roomId)
+          message: 'Một người dùng đã chọn kết thúc cuộc trò chuyện.',
+          room_id: parseInt(roomId),
+          ended_by: currentUser.id,
+          reason: 'user_declined'
         }, parseInt(roomId));
       }
 
@@ -630,6 +632,7 @@ function startNotificationPhase(roomId) {
       // Notification timeout, end room
       clearInterval(notificationInterval);
       notificationStates.delete(roomId);
+      userResponses.delete(roomId); // ✅ FIX: Clear user responses to prevent memory leak
       
       console.log(`⏰ Notification timeout for room ${roomId}, ending room`);
       
@@ -640,7 +643,8 @@ function startNotificationPhase(roomId) {
           connectionManager.broadcastToRoom({
             type: 'room_ended',
             message: 'Hết thời gian phản hồi. Cuộc trò chuyện đã kết thúc.',
-            room_id: parseInt(roomId)
+            room_id: parseInt(roomId),
+            reason: 'timeout'
           }, parseInt(roomId));
         }
       });

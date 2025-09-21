@@ -705,34 +705,50 @@ export class SimpleCountdownModuleV2 {
             return;
         }
         
-        // Nếu user chọn "Không" - gọi endpoint kết thúc room
+        // Nếu user chọn "Không" - gọi countdown response endpoint để thống nhất logic
         if (!isYes) {
+            console.log('⏰ User chose "Không" - sending "no" response through countdown endpoint');
+            
             try {
-                const response = await fetch(`/chat/end/${this.currentRoomId}`, {
+                const response = await fetch(`/simple-countdown/response/${this.currentRoomId}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                    }
+                    },
+                    body: JSON.stringify({ response: "no" })
                 });
                 
                 if (response.ok) {
                     const result = await response.json();
-                    console.log('⏰ Room ended successfully:', result);
+                    console.log('⏰ "No" response sent successfully:', result);
                     
                     this.hideNotification();
-                    this.showToast(result.message, 'error');
+                    
+                    if (result.room_ended) {
+                        this.showToast(result.message, 'error');
+                        
+                        // ✅ SỬA: Reset keep active button state
+                        if (this.app?.keepActiveManager && this.currentRoomId) {
+                            this.app.keepActiveManager.resetKeepActiveButton(this.currentRoomId);
+                        }
+                        
+                        // Reset chat state
+                        if (this.app && this.app.chatModule) {
+                            this.app.chatModule.resetChatState();
+                        }
+                    }
                 } else {
                     const error = await response.text();
-                    console.error('⏰ Error ending room:', response.status, error);
+                    console.error('⏰ Error sending "no" response:', response.status, error);
                     
                     this.enableNotificationButtons();
-                    this.showToast('Lỗi kết thúc phòng. Vui lòng thử lại.', 'error');
+                    this.showToast('Lỗi gửi phản hồi. Vui lòng thử lại.', 'error');
                 }
             } catch (error) {
-                console.error('⏰ Error ending room:', error);
+                console.error('⏰ Error sending "no" response:', error);
                 this.enableNotificationButtons();
-                this.showToast('Lỗi kết thúc phòng. Vui lòng thử lại.', 'error');
+                this.showToast('Lỗi gửi phản hồi. Vui lòng thử lại.', 'error');
             }
             return;
         }
