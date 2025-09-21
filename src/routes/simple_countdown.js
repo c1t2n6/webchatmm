@@ -32,6 +32,28 @@ const cleanupExpiredStates = () => {
   }
 };
 
+// ✅ THÊM: Stop all timers for a specific room
+const stopRoomTimers = (roomId) => {
+  console.log(`🛑 Stopping all timers for room ${roomId}`);
+  
+  // Stop countdown state
+  const countdownState = countdownStates.get(roomId);
+  if (countdownState) {
+    countdownState.active = false;
+    countdownStates.delete(roomId);
+    console.log(`🛑 Stopped countdown timer for room ${roomId}`);
+  }
+  
+  // Stop notification state
+  const notificationState = notificationStates.get(roomId);
+  if (notificationState) {
+    notificationState.active = false;
+    notificationStates.delete(roomId);
+    userResponses.delete(roomId);
+    console.log(`🛑 Stopped notification timer for room ${roomId}`);
+  }
+};
+
 // Cleanup every 2 minutes
 setInterval(cleanupExpiredStates, 2 * 60 * 1000);
 
@@ -456,12 +478,17 @@ function startCountdownTimer(roomId, duration) {
     state.remaining--;
     
     // Broadcast countdown update
-    if (connectionManager) {
+    if (connectionManager && connectionManager.roomConnections.has(parseInt(roomId))) {
       connectionManager.broadcastToRoom({
         type: 'countdown_update',
         room_id: parseInt(roomId),
         remaining: state.remaining
       }, parseInt(roomId));
+    } else {
+      console.log(`⚠️ Room ${roomId} not found in connections, stopping countdown timer`);
+      clearInterval(countdownInterval);
+      countdownStates.delete(roomId);
+      return;
     }
 
     if (state.remaining <= 0) {
@@ -527,12 +554,18 @@ function startNotificationPhase(roomId) {
     state.remaining--;
     
     // Broadcast notification update
-    if (connectionManager) {
+    if (connectionManager && connectionManager.roomConnections.has(parseInt(roomId))) {
       connectionManager.broadcastToRoom({
         type: 'notification_update',
         room_id: parseInt(roomId),
         remaining: state.remaining
       }, parseInt(roomId));
+    } else {
+      console.log(`⚠️ Room ${roomId} not found in connections, stopping notification timer`);
+      clearInterval(notificationInterval);
+      notificationStates.delete(roomId);
+      userResponses.delete(roomId);
+      return;
     }
 
     if (state.remaining <= 0) {
@@ -561,5 +594,6 @@ module.exports = {
   router, 
   initModels, 
   handleUserDisconnect, 
-  handleUserReconnect 
+  handleUserReconnect,
+  stopRoomTimers // ✅ THÊM: Export hàm stopRoomTimers
 };

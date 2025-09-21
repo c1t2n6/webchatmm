@@ -57,6 +57,12 @@ export class KeepActiveStateManager {
         this.syncInterval = setInterval(() => {
             if (this.state.isOnline && this.state.currentRoomId && !this.state.roomEnded) {
                 this.syncWithBackend();
+            } else {
+                console.log('🔧 Sync interval skipped:', {
+                    isOnline: this.state.isOnline,
+                    currentRoomId: this.state.currentRoomId,
+                    roomEnded: this.state.roomEnded
+                });
             }
         }, this.cacheSettings.syncInterval);
     }
@@ -296,7 +302,12 @@ export class KeepActiveStateManager {
      * Sync with backend
      */
     async syncWithBackend() {
-        if (!this.state.currentRoomId || !this.state.isOnline) {
+        if (!this.state.currentRoomId || !this.state.isOnline || this.state.roomEnded) {
+            console.log('🔧 Skipping sync - room ended or offline:', {
+                currentRoomId: this.state.currentRoomId,
+                isOnline: this.state.isOnline,
+                roomEnded: this.state.roomEnded
+            });
             return;
         }
         
@@ -399,9 +410,11 @@ export class KeepActiveStateManager {
         // Stop sync interval if this is the current room
         if (this.state.currentRoomId === roomId) {
             this.state.roomEnded = true;
+            this.state.currentRoomId = null; // ✅ THÊM: Clear current room ID
             if (this.syncInterval) {
                 clearInterval(this.syncInterval);
                 this.syncInterval = null;
+                console.log('🔧 Sync interval cleared for ended room:', roomId);
             }
         }
     }

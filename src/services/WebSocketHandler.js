@@ -13,11 +13,8 @@ class WebSocketHandler {
   // Handle chat WebSocket connection
   async handleChatConnection(socket, roomId) {
     try {
-      console.log(`🔌 Chat WebSocket connection for room ${roomId}`);
-
-      // ✅ SỬA: Tránh duplicate connection
+      // Tránh duplicate connection
       if (socket._chatConnected) {
-        console.log(`⚠️ User already connected to chat, skipping duplicate connection`);
         return;
       }
 
@@ -176,10 +173,10 @@ class WebSocketHandler {
 
   // Set up chat message handlers
   setupChatHandlers(socket, roomId, user) {
-    // ✅ SỬA: Tránh duplicate event listeners
+    // ✅ SỬA: Remove existing listeners first, then setup new ones
     if (socket._chatHandlersSetup) {
-      console.log(`⚠️ Chat handlers already setup for user ${user.id}, skipping duplicate`);
-      return;
+      console.log(`⚠️ Chat handlers already setup for user ${user.id}, removing old handlers first`);
+      this.removeChatHandlers(socket);
     }
     
     // Handle chat messages
@@ -192,9 +189,6 @@ class WebSocketHandler {
         if (ack) ack({ status: 'error', message: 'Failed to send message' });
       }
     });
-    
-    // Mark handlers as setup
-    socket._chatHandlersSetup = true;
 
     // Handle typing indicators
     socket.on('typing', async (data) => {
@@ -227,6 +221,20 @@ class WebSocketHandler {
       console.log(`🔌 User ${user.id} disconnected from room ${roomId}`);
       await this.connectionManager.removeFromRoom(roomId, user.id);
     });
+    
+    // Mark handlers as setup AFTER all handlers are registered
+    socket._chatHandlersSetup = true;
+    console.log(`✅ Chat handlers setup completed for user ${user.id} in room ${roomId}`);
+  }
+
+  // Remove chat handlers
+  removeChatHandlers(socket) {
+    const events = ['message', 'typing', 'like_response', 'heartbeat', 'disconnect'];
+    events.forEach(event => {
+      socket.removeAllListeners(event);
+    });
+    socket._chatHandlersSetup = false;
+    console.log(`🧹 Removed all chat handlers from socket`);
   }
 
   // Set up status message handlers
@@ -352,7 +360,17 @@ class WebSocketHandler {
 
   // Handle typing indicator
   async handleTypingIndicator(socket, roomId, user, data) {
-    const { is_typing } = data;
+    const { is_typing, room_id } = data;
+    
+    console.log(`⌨️ Received typing indicator from user ${user.id}, roomId: ${roomId}, data.room_id: ${room_id}`);
+    
+    // Use room_id from data if available, otherwise use roomId from socket
+    const targetRoomId = room_id || roomId;
+    
+    if (!targetRoomId) {
+      console.log('❌ No room ID provided for typing indicator');
+      return;
+    }
     
     const typingData = {
       type: is_typing ? 'typing' : 'stop_typing',
@@ -362,9 +380,11 @@ class WebSocketHandler {
       timestamp: new Date().toISOString()
     };
 
+    console.log(`⌨️ Broadcasting typing indicator to room ${targetRoomId} for user ${user.id}`);
+    
     // Broadcast typing indicator to other users in room
-    await this.connectionManager.broadcastToRoom(typingData, roomId, user.id);
-    console.log(`⌨️ Typing indicator broadcasted for user ${user.id} (is_typing: ${is_typing})`);
+    const broadcastResult = await this.connectionManager.broadcastToRoom(typingData, targetRoomId, user.id);
+    console.log(`⌨️ Typing indicator broadcast result: ${broadcastResult ? 'success' : 'failed'} for user ${user.id} in room ${targetRoomId} (is_typing: ${is_typing})`);
   }
 
   // Handle like response

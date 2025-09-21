@@ -355,7 +355,7 @@ class ChatModule {
         // Load chat history
         this.loadChatHistory(roomId);
         
-        // Setup typing listeners
+        // Setup typing listeners (includes Enter key handling)
         this.messageHandler.setupTypingListeners();
         
         // Sync with backend
@@ -601,17 +601,15 @@ class ChatModule {
     processTyping(data) {
         // SIMPLE TYPING PROCESSING
         console.log('💬 Chat - Received typing indicator:', data);
-        if (data.user_id && data.user_id !== this.app.currentUser.id) {
-            console.log('💬 Chat - Showing typing indicator for user:', data.user_id);
+        
+        if (data.user_id && data.user_id != this.app.currentUser.id) {
             this.messageHandler.showTypingIndicator(data.user_id);
-        } else {
-            console.log('💬 Chat - Ignoring typing indicator (own message or no user_id)');
         }
     }
 
     processStopTyping(data) {
         // SIMPLE STOP TYPING PROCESSING
-        if (data.user_id && data.user_id !== this.app.currentUser.id) {
+        if (data.user_id && data.user_id != this.app.currentUser.id) {
             this.messageHandler.hideTypingIndicator(data.user_id);
         }
     }
@@ -640,6 +638,12 @@ class ChatModule {
         
         if (this.app.currentRoom && this.app.currentRoom.id == data.room_id) {
             console.log('🔍 Chat - Room closed is current room, processing...');
+            
+            // ✅ THÊM: Stop keep active manager for current room
+            if (this.app.keepActiveManager) {
+                this.app.keepActiveManager.clearRoomState(this.app.currentRoom.id);
+                console.log('🔍 Chat - Keep active manager cleared for closed room:', this.app.currentRoom.id);
+            }
             
             // Show modal notification
             this.showRoomEndedModal(data.message || 'Phòng chat đã được đóng');
@@ -765,6 +769,12 @@ class ChatModule {
         // Set room ended flag
         this.roomManager.roomEnded = true;
         console.log('🔍 Chat - Room ended flag set to true');
+        
+        // ✅ THÊM: Stop keep active manager for current room
+        if (this.app.keepActiveManager && this.app.currentRoom) {
+            this.app.keepActiveManager.clearRoomState(this.app.currentRoom.id);
+            console.log('🔍 Chat - Keep active manager cleared for room:', this.app.currentRoom.id);
+        }
         
         // Reset last match room ID
         this.roomManager.lastMatchRoomId = null;

@@ -174,11 +174,8 @@ class MapmoApp {
         if (sendMessage) {
             sendMessage.addEventListener('click', () => this.chatModule.sendMessage());
         }
-        if (messageInput) {
-            messageInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.chatModule.sendMessage();
-            });
-        }
+        // Note: Enter key handling is now managed by message_handler.js
+        // to avoid duplicate event listeners
         if (endChat) {
             endChat.addEventListener('click', () => this.chatModule.endChat());
         }
@@ -223,6 +220,9 @@ class MapmoApp {
         this.eventsBound = true;
         console.log('🔍 App - Events bound successfully');
     }
+
+    // Note: Message input listeners are now handled by message_handler.js
+    // to avoid duplicate event listeners and ensure proper typing indicator functionality
 
     // Navigation
     handleChatClick() {

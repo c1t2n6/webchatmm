@@ -39,29 +39,22 @@ class ConnectionManager {
   // Add user to room
   async addToRoom(roomId, userId, socket) {
     try {
-      console.log(`👤 Adding user ${userId} to room ${roomId}`);
-
       // Check if user is already in this room
       if (this.isUserInRoom(userId, roomId)) {
-        console.log(`⚠️ User ${userId} already in room ${roomId}`);
         return true;
       }
 
       // Create room if it doesn't exist
       if (!this.roomConnections.has(roomId)) {
         this.roomConnections.set(roomId, new Set());
-        console.log(`🏠 Created new room ${roomId}`);
       }
 
       // Add user to room
       this.roomConnections.get(roomId).add(userId);
       this.userRooms.set(userId, roomId);
-      
-      // ✅ THÊM: Add user to activeConnections để có thể broadcast messages
       this.activeConnections.set(userId, socket);
 
       console.log(`✅ User ${userId} added to room ${roomId}`);
-      console.log(`🏠 Room ${roomId} now has users: ${Array.from(this.roomConnections.get(roomId))}`);
       
       return true;
     } catch (error) {
@@ -138,15 +131,15 @@ class ConnectionManager {
   // Broadcast message to room
   async broadcastToRoom(message, roomId, excludeUserId = null) {
     try {
-      console.log(`📢 Broadcasting message to room ${roomId}`);
-
+      console.log(`📢 Broadcasting message to room ${roomId}, excludeUserId: ${excludeUserId}, message type: ${message.type}`);
+      
       if (!this.roomConnections.has(roomId)) {
         console.log(`⚠️ Room ${roomId} not found in room_connections`);
         return false;
       }
 
       const usersInRoom = Array.from(this.roomConnections.get(roomId));
-      console.log(`👥 Users in room ${roomId}: ${usersInRoom.join(',')}`);
+      console.log(`👥 Users in room ${roomId}: ${usersInRoom.join(', ')}`);
 
       if (usersInRoom.length === 0) {
         console.log(`⚠️ No users in room ${roomId}`);
@@ -157,8 +150,8 @@ class ConnectionManager {
       const failedUsers = [];
       
       for (const userId of usersInRoom) {
-        // Skip excluded user
-        if (excludeUserId && userId === excludeUserId) {
+        // Skip excluded user - use strict comparison
+        if (excludeUserId && String(userId) === String(excludeUserId)) {
           console.log(`⏭️ Skipping excluded user ${userId}`);
           continue;
         }
@@ -166,7 +159,6 @@ class ConnectionManager {
         const socket = this.activeConnections.get(userId);
         if (socket) {
           try {
-            // ✅ THÊM: Kiểm tra socket connection trước khi gửi
             if (!socket.connected) {
               console.log(`⚠️ Socket for user ${userId} is not connected`);
               this.disconnect(userId);
@@ -176,7 +168,7 @@ class ConnectionManager {
             
             socket.emit('message', message);
             successCount++;
-            console.log(`✅ Message sent to user ${userId} in room ${roomId}`);
+            console.log(`✅ Message sent to user ${userId}`);
           } catch (error) {
             console.error(`❌ Error sending to user ${userId}:`, error);
             this.disconnect(userId);
@@ -190,11 +182,10 @@ class ConnectionManager {
 
       console.log(`📊 Successfully sent to ${successCount}/${usersInRoom.length} users`);
       
-      // ✅ THÊM: Log failed users để debug
       if (failedUsers.length > 0) {
         console.log(`❌ Failed to send to users: ${failedUsers.join(', ')}`);
       }
-      
+
       return successCount > 0;
     } catch (error) {
       console.error(`❌ Error broadcasting to room ${roomId}:`, error);
@@ -262,6 +253,14 @@ class ConnectionManager {
   async forceCloseRoom(roomId) {
     try {
       console.log(`🔒 Force closing room ${roomId}`);
+
+      // ✅ THÊM: Stop all countdown/notification timers for this room
+      try {
+        const { stopRoomTimers } = require('../routes/simple_countdown');
+        stopRoomTimers(roomId);
+      } catch (error) {
+        console.log(`⚠️ Could not stop room timers: ${error.message}`);
+      }
 
       // ✅ SỬA: Kiểm tra room có tồn tại không trước khi xử lý
       let usersInRoom = [];

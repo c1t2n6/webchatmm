@@ -143,10 +143,13 @@ export class WebSocketManager {
         // Debug typing messages
         if (messageData.type === 'typing' || messageData.type === 'stop_typing') {
             console.log('🔌 WebSocket - Sending typing message:', messageData);
+            // Send typing messages with 'typing' event
+            this.websocket.emit('typing', messageData, callback);
         } else {
             console.log('🔌 WebSocket - Sending message:', messageData);
+            // Send regular messages with 'message' event
+            this.websocket.emit('message', messageData, callback);
         }
-        this.websocket.emit('message', messageData, callback);
         return true;
     }
 

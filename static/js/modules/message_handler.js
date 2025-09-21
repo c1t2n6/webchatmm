@@ -81,28 +81,24 @@ export class MessageHandler {
     }
 
     sendTypingIndicator() {
-        console.log('💬 Message - sendTypingIndicator called, isTyping:', this.isTyping);
-        
         // Clear existing timer
         if (this.typingTimer) {
             clearTimeout(this.typingTimer);
         }
 
         // Send typing indicator
-        if (this.app.websocketManager.isConnected()) {
-            console.log('💬 Message - Sending typing indicator');
-            this.app.websocketManager.sendMessage({
+        if (this.app.websocketManager.isConnected() && this.app.currentRoom) {
+            const typingData = {
                 type: 'typing',
                 is_typing: true,
-                user_id: this.app.currentUser.id
-            });
-        } else {
-            console.log('💬 Message - WebSocket not connected, cannot send typing indicator');
+                user_id: this.app.currentUser.id,
+                room_id: this.app.currentRoom.id
+            };
+            this.app.websocketManager.sendMessage(typingData);
         }
 
         // Auto-stop typing after 3 seconds
         this.typingTimer = setTimeout(() => {
-            console.log('💬 Message - Auto-stopping typing indicator after 3 seconds');
             this.sendStopTypingIndicator();
         }, 3000);
     }
@@ -112,15 +108,20 @@ export class MessageHandler {
             clearTimeout(this.typingTimer);
             this.typingTimer = null;
         }
+        
+        if (this.typingTimeout) {
+            clearTimeout(this.typingTimeout);
+            this.typingTimeout = null;
+        }
 
-        if (this.app.websocketManager.isConnected() && this.isTyping) {
+        if (this.app.websocketManager.isConnected() && this.isTyping && this.app.currentRoom) {
             this.isTyping = false;
             this.app.websocketManager.sendMessage({
-                type: 'typing',
+                type: 'stop_typing',
                 is_typing: false,
-                user_id: this.app.currentUser.id
+                user_id: this.app.currentUser.id,
+                room_id: this.app.currentRoom.id
             });
-            console.log('💬 Message - Sent stop typing indicator');
         }
     }
 
@@ -130,58 +131,63 @@ export class MessageHandler {
         
         const input = document.getElementById('messageInput');
         if (!input) {
-            console.log('💬 Message - messageInput element not found, retrying in 100ms');
             setTimeout(() => this.setupTypingListeners(), 100);
             return;
         }
-        console.log('💬 Message - Setting up typing listeners for input:', input);
 
-        let typingTimeout;
+        // Store timeout reference for cleanup
+        this.typingTimeout = null;
 
         // Debounced typing indicator
         const handleTyping = () => {
-            console.log('💬 Message - handleTyping called, isTyping:', this.isTyping, 'WebSocket connected:', this.app.websocketManager.isConnected());
-            
-            if (!this.app.websocketManager.isConnected()) {
-                console.log('💬 Message - WebSocket not connected, skipping typing indicator');
+            if (!this.app.websocketManager.isConnected() || !this.app.currentRoom) {
                 return;
             }
             
             if (!this.isTyping) {
-                console.log('💬 Message - Starting typing indicator');
                 this.isTyping = true;
                 this.sendTypingIndicator();
             } else {
-                console.log('💬 Message - Already typing, resetting timer');
                 // Still send typing indicator to keep it alive
                 this.sendTypingIndicator();
             }
             
             // Reset timer on each keystroke
-            clearTimeout(typingTimeout);
-            typingTimeout = setTimeout(() => {
-                console.log('💬 Message - Stopping typing indicator after 1 second of inactivity');
-                this.isTyping = false;
+            clearTimeout(this.typingTimeout);
+            this.typingTimeout = setTimeout(() => {
                 this.sendStopTypingIndicator();
             }, 1000);
         };
 
+        // Store handlers for proper cleanup
+        this.typingHandler = handleTyping;
+        this.enterKeyHandler = (e) => {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault();
+                this.sendMessage();
+            }
+        };
+
         // Send typing indicator when starting to type
-        input.addEventListener('input', (e) => {
-            console.log('💬 Message - Input event triggered:', e.target.value);
-            handleTyping();
-        });
-        
-        console.log('💬 Message - Typing listeners setup completed');
+        input.addEventListener('input', this.typingHandler);
+        input.addEventListener('keypress', this.enterKeyHandler);
+        input.addEventListener('keydown', this.enterKeyHandler);
     }
 
     removeTypingListeners() {
         const input = document.getElementById('messageInput');
-        if (input) {
-            // Clone the input to remove all event listeners
-            const newInput = input.cloneNode(true);
-            input.parentNode.replaceChild(newInput, input);
+        if (input && this.typingHandler && this.enterKeyHandler) {
+            // Remove specific event listeners
+            input.removeEventListener('input', this.typingHandler);
+            input.removeEventListener('keypress', this.enterKeyHandler);
+            input.removeEventListener('keydown', this.enterKeyHandler);
             console.log('💬 Message - Removed existing typing listeners');
+        }
+        
+        // Clear typing timeout
+        if (this.typingTimeout) {
+            clearTimeout(this.typingTimeout);
+            this.typingTimeout = null;
         }
     }
 
@@ -230,9 +236,7 @@ export class MessageHandler {
     }
 
     showTypingIndicator(userId) {
-        console.log('💬 Message - showTypingIndicator called for user:', userId);
         if (userId === this.app.currentUser.id) {
-            console.log('💬 Message - Ignoring typing indicator for own user');
             return;
         }
         
@@ -240,11 +244,9 @@ export class MessageHandler {
         if (!typingElement) {
             const chatMessages = document.getElementById('chatMessages');
             if (!chatMessages) {
-                console.log('💬 Message - Chat messages container not found');
                 return;
             }
             
-            console.log('💬 Message - Creating typing indicator element');
             const typingDiv = document.createElement('div');
             typingDiv.className = 'flex justify-start typing-indicator';
             typingDiv.innerHTML = `
@@ -254,27 +256,17 @@ export class MessageHandler {
             `;
             chatMessages.appendChild(typingDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
-            console.log('💬 Message - Typing indicator added to chat');
-            console.log('💬 Message - Typing element:', typingDiv);
-            console.log('💬 Message - Chat messages container:', chatMessages);
-        } else {
-            console.log('💬 Message - Typing indicator already exists');
         }
     }
 
     hideTypingIndicator(userId) {
-        console.log('💬 Message - hideTypingIndicator called for user:', userId);
         if (userId === this.app.currentUser.id) {
-            console.log('💬 Message - Ignoring hide typing indicator for own user');
             return;
         }
         
         const typingElement = document.querySelector('.typing-indicator');
         if (typingElement) {
-            console.log('💬 Message - Removing typing indicator element');
             typingElement.remove();
-        } else {
-            console.log('💬 Message - No typing indicator element found to remove');
         }
     }
     
@@ -282,19 +274,28 @@ export class MessageHandler {
     testTypingIndicator() {
         console.log('🧪 Testing typing indicator...');
         
-        // Simulate typing from another user
-        const testData = {
-            user_id: 'test_user_123',
-            is_typing: true
-        };
+        // Test 1: Check if input element exists
+        const input = document.getElementById('messageInput');
+        console.log('🧪 Input element:', input);
         
-        this.showTypingIndicator('test_user_123');
+        // Test 2: Check if WebSocket is connected
+        console.log('🧪 WebSocket connected:', this.app.websocketManager.isConnected());
+        
+        // Test 3: Check current user
+        console.log('🧪 Current user:', this.app.currentUser);
+        
+        // Test 4: Simulate typing from another user
+        setTimeout(() => {
+            console.log('🧪 Simulating typing from another user...');
+            this.showTypingIndicator('test_user_123');
+        }, 1000);
         
         // Hide after 3 seconds
         setTimeout(() => {
+            console.log('🧪 Hiding typing indicator...');
             this.hideTypingIndicator('test_user_123');
             console.log('🧪 Typing indicator test completed');
-        }, 3000);
+        }, 4000);
     }
 
     clearTypingState() {
@@ -302,7 +303,18 @@ export class MessageHandler {
             clearTimeout(this.typingTimer);
             this.typingTimer = null;
         }
+        if (this.typingTimeout) {
+            clearTimeout(this.typingTimeout);
+            this.typingTimeout = null;
+        }
         this.isTyping = false;
+        
+        // Clear any existing typing indicators in UI
+        const typingElement = document.querySelector('.typing-indicator');
+        if (typingElement) {
+            typingElement.remove();
+        }
+        
         console.log('💬 Message - Typing state cleared');
     }
 
@@ -320,14 +332,63 @@ export class MessageHandler {
     }
 }
 
-// Global test function
+// Global test functions
 window.testTypingIndicator = function() {
     if (window.app && window.app.messageHandler) {
         window.app.messageHandler.testTypingIndicator();
-    } else {
-        console.error('💬 Message - App or messageHandler not available');
     }
 };
+
+// Quick test function for typing indicator
+window.quickTypingTest = function() {
+    console.log('🧪 Quick typing test...');
+    
+    // Test 1: Check if typing listeners are setup
+    const input = document.getElementById('messageInput');
+    if (!input) {
+        console.error('❌ Input element not found');
+        return;
+    }
+    
+    // Test 2: Simulate typing
+    console.log('🧪 Simulating typing...');
+    input.value = 'Test message';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    // Test 3: Check if typing indicator shows
+    setTimeout(() => {
+        const typingElement = document.querySelector('.typing-indicator');
+        if (typingElement) {
+            console.log('✅ Typing indicator is showing');
+        } else {
+            console.log('❌ Typing indicator not showing');
+        }
+        
+        // Clean up
+        input.value = '';
+    }, 1000);
+};
+
+// Test function to simulate typing from another user
+window.testTypingFromOtherUser = function() {
+    console.log('🧪 Testing typing from other user...');
+    
+    if (window.app && window.app.chatModule) {
+        const mockTypingData = {
+            type: 'typing',
+            user_id: '999',
+            username: 'Test User',
+            is_typing: true,
+            timestamp: new Date().toISOString()
+        };
+        
+        window.app.chatModule.handleWebSocketMessage(mockTypingData);
+        console.log('✅ Simulated typing from other user');
+    } else {
+        console.error('❌ App or chat module not found');
+    }
+};
+
 
 // Global reset function
 window.resetSendingState = function() {
