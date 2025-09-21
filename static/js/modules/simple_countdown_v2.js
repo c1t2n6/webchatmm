@@ -10,7 +10,15 @@ export class SimpleCountdownModuleV2 {
         this.countdownElement = null;
         this.notificationModal = null;
         
-        console.log('⏰ SimpleCountdownModuleV2 initialized');
+        // ✅ TỐI ƯU: Thêm local timer để smooth countdown
+        this.localTimer = null;
+        this.serverSync = {
+            endTimestamp: null,
+            lastSync: null,
+            drift: 0 // Để bu đắp network latency
+        };
+        
+        console.log('⏰ SimpleCountdownModuleV2 initialized with local timer optimization');
     }
     
     /**
@@ -56,23 +64,63 @@ export class SimpleCountdownModuleV2 {
     }
     
     /**
-     * Xử lý countdown start
+     * ✅ TỐI ƯU: Xử lý countdown start với local timer
      */
     handleCountdownStart(data) {
         console.log('⏰ Countdown started:', data);
         this.currentRoomId = data.room_id;
+        
+        // ✅ TỐI ƯU: Lưu timestamp từ server để sync chính xác
+        if (data.endTimestamp) {
+            this.serverSync.endTimestamp = data.endTimestamp;
+            this.serverSync.lastSync = Date.now();
+            
+            // Tính toán drift ban đầu
+            const clientExpectedEnd = Date.now() + (data.duration * 1000);
+            this.serverSync.drift = data.endTimestamp - clientExpectedEnd;
+            
+            console.log('⏰ Server sync data:', {
+                serverEndTime: new Date(data.endTimestamp),
+                clientEndTime: new Date(clientExpectedEnd),
+                drift: this.serverSync.drift
+            });
+        }
+        
         this.showCountdown(data.duration);
+        this.startLocalTimer();
     }
     
     /**
-     * Xử lý countdown update
+     * ✅ TỐI ƯU: Xử lý countdown update với sync correction
      */
     handleCountdownUpdate(data) {
         console.log('⏰ Countdown update:', data.remaining);
-        this.updateCountdownDisplay(data.remaining);
+        
+        // ✅ TỐI ƯU: Cập nhật server sync data
+        if (data.endTimestamp && data.timestamp) {
+            this.serverSync.endTimestamp = data.endTimestamp;
+            this.serverSync.lastSync = Date.now();
+            
+            // Tính toán lại drift dựa trên data mới
+            const networkDelay = Date.now() - data.timestamp;
+            const clientRemaining = Math.max(0, Math.ceil((data.endTimestamp - Date.now()) / 1000));
+            
+            console.log('⏰ Sync correction:', {
+                serverRemaining: data.remaining,
+                clientRemaining: clientRemaining,
+                networkDelay: networkDelay
+            });
+            
+            // Sử dụng giá trị chính xác hơn
+            this.updateCountdownDisplay(clientRemaining);
+        } else {
+            // Fallback nếu không có timestamp data
+            this.updateCountdownDisplay(data.remaining);
+        }
         
         if (data.remaining <= 0) {
             this.hideCountdown();
+            this.stopLocalTimer();
         }
     }
     
@@ -242,9 +290,12 @@ export class SimpleCountdownModuleV2 {
     }
     
     /**
-     * Ẩn countdown
+     * ✅ TỐI ƯU: Ẩn countdown và dừng local timer
      */
     hideCountdown() {
+        // ✅ TỐI ƯU: Dừng local timer trước khi ẩn
+        this.stopLocalTimer();
+        
         if (this.countdownElement) {
             if (this.countdownElement.id === 'floating-countdown') {
                 this.countdownElement.remove();
@@ -258,6 +309,13 @@ export class SimpleCountdownModuleV2 {
             }
             this.countdownElement = null;
         }
+        
+        // Reset sync data
+        this.serverSync = {
+            endTimestamp: null,
+            lastSync: null,
+            drift: 0
+        };
     }
     
     /**
@@ -733,7 +791,13 @@ export class SimpleCountdownModuleV2 {
                 // Chỉ hiển thị nếu có active countdown/notification
                 if (status.phase === 'countdown' && status.countdown_remaining > 0) {
                     console.log('⏰ Restoring countdown with remaining time:', status.countdown_remaining);
+                    
+                    // ✅ TỐI ƯU: Tự tính toán endTimestamp cho local timer
+                    this.serverSync.endTimestamp = Date.now() + (status.countdown_remaining * 1000);
+                    this.serverSync.lastSync = Date.now();
+                    
                     this.showCountdown(status.countdown_remaining);
+                    this.startLocalTimer();
                 } else if (status.phase === 'notification' && status.notification_remaining > 0) {
                     console.log('⏰ Restoring notification with remaining time:', status.notification_remaining);
                     
@@ -821,11 +885,55 @@ export class SimpleCountdownModuleV2 {
     // ✅ REMOVED: resetKeepActiveButton - đã được thay thế bởi KeepActiveStateManager
 
     /**
+     * ✅ TỐI ƯU: Bắt đầu local timer để hiển thị smooth countdown
+     */
+    startLocalTimer() {
+        this.stopLocalTimer(); // Dừng timer cũ nếu có
+        
+        if (!this.serverSync.endTimestamp) {
+            console.log('⏰ No server sync data, skipping local timer');
+            return;
+        }
+        
+        console.log('⏰ Starting local timer for smooth countdown');
+        
+        // ✅ TỐI ƯU: Cập nhật mỗi 100ms để rất smooth
+        this.localTimer = setInterval(() => {
+            if (!this.serverSync.endTimestamp) {
+                this.stopLocalTimer();
+                return;
+            }
+            
+            const now = Date.now();
+            const remaining = Math.max(0, Math.ceil((this.serverSync.endTimestamp - now) / 1000));
+            
+            // Chỉ cập nhật display, không broadcast
+            this.updateCountdownDisplay(remaining);
+            
+            if (remaining <= 0) {
+                this.stopLocalTimer();
+            }
+        }, 100); // ✅ TỐI ƯU: 100ms để rất smooth
+    }
+    
+    /**
+     * ✅ TỐI ƯU: Dừng local timer
+     */
+    stopLocalTimer() {
+        if (this.localTimer) {
+            clearInterval(this.localTimer);
+            this.localTimer = null;
+            console.log('⏰ Local timer stopped');
+        }
+    }
+
+    /**
      * Cleanup
      */
     cleanup() {
         this.hideCountdown();
         this.hideNotification();
+        this.stopLocalTimer(); // ✅ TỐI ƯU: Dừng local timer
         
         // ✅ SỬA: Sử dụng StateManager để reset button
         if (this.app?.keepActiveManager && this.currentRoomId) {

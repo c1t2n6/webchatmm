@@ -444,45 +444,75 @@ router.post('/response/:roomId', authenticateToken, async (req, res) => {
 function startCountdownTimer(roomId, duration) {
   console.log(`⏰ Starting countdown timer for room ${roomId}, duration: ${duration}s`);
   
-  // Set countdown state
+  // ✅ TỐI ƯU: Set countdown state với timestamp chính xác
+  const now = Date.now();
   countdownStates.set(roomId, {
     active: true,
     remaining: duration,
-    startTime: Date.now()
+    startTime: now,
+    startTimestamp: now, // ✅ THÊM: High precision start time
+    endTimestamp: now + (duration * 1000) // ✅ THÊM: Chính xác thời gian kết thúc
   });
 
-  // Broadcast countdown start
+  // ✅ TỐI ƯU: Broadcast countdown start với thêm timestamp information
   if (connectionManager) {
     const roomIdInt = parseInt(roomId);
     console.log(`⏰ Broadcasting countdown_start to room ${roomId} (${roomIdInt})`);
     console.log(`⏰ ConnectionManager roomConnections:`, connectionManager.roomConnections);
     console.log(`⏰ Room ${roomId} (${roomIdInt}) exists:`, connectionManager.roomConnections.has(roomIdInt));
     
+    const now = Date.now();
     connectionManager.broadcastToRoom({
       type: 'countdown_start',
       room_id: roomIdInt,
-      duration: duration
+      duration: duration,
+      startTimestamp: now, // ✅ THÊM: Thời gian bắt đầu chính xác
+      endTimestamp: now + (duration * 1000) // ✅ THÊM: Thời gian kết thúc dự kiến
     }, roomIdInt);
   } else {
     console.log(`⚠️ No ConnectionManager available for countdown broadcast`);
   }
 
-  // Start countdown interval
+  // ✅ TỐI ƯU: Sử dụng high precision timer và tăng tần suất update
+  const startTimestamp = Date.now();
+  const endTimestamp = startTimestamp + (duration * 1000);
+  
+  // Cập nhật state với timestamp chính xác
+  const state = countdownStates.get(roomId);
+  state.startTimestamp = startTimestamp;
+  state.endTimestamp = endTimestamp;
+  
+  // ✅ TỐI ƯU: Interval 500ms thay vì 1000ms để smooth hơn
   const countdownInterval = setInterval(async () => {
-    const state = countdownStates.get(roomId);
-    if (!state || !state.active) {
+    const currentState = countdownStates.get(roomId);
+    if (!currentState || !currentState.active) {
       clearInterval(countdownInterval);
       return;
     }
 
-    state.remaining--;
+    // ✅ TỐI ƯU: Tính toán chính xác dựa trên timestamp
+    const now = Date.now();
+    const remaining = Math.max(0, Math.ceil((currentState.endTimestamp - now) / 1000));
+    currentState.remaining = remaining;
     
-    // Broadcast countdown update
+    // ✅ TỐI ƯU: Check số users trong room trước khi broadcast
     if (connectionManager && connectionManager.roomConnections.has(parseInt(roomId))) {
+      const usersInRoom = connectionManager.roomConnections.get(parseInt(roomId));
+      
+      // ✅ TỐI ƯU: Nếu không có user nào trong room, dừng countdown
+      if (!usersInRoom || usersInRoom.size === 0) {
+        console.log(`⚠️ No users in room ${roomId}, stopping countdown timer`);
+        clearInterval(countdownInterval);
+        countdownStates.delete(roomId);
+        return;
+      }
+      
       connectionManager.broadcastToRoom({
         type: 'countdown_update',
         room_id: parseInt(roomId),
-        remaining: state.remaining
+        remaining: remaining,
+        timestamp: now,
+        endTimestamp: currentState.endTimestamp // ✅ THÊM: Frontend có thể tự tính toán
       }, parseInt(roomId));
     } else {
       console.log(`⚠️ Room ${roomId} not found in connections, stopping countdown timer`);
@@ -491,23 +521,27 @@ function startCountdownTimer(roomId, duration) {
       return;
     }
 
-    if (state.remaining <= 0) {
+    if (remaining <= 0) {
       // Countdown finished, start notification phase
       clearInterval(countdownInterval);
       countdownStates.delete(roomId);
       startNotificationPhase(roomId);
     }
-  }, 1000);
+  }, 500); // ✅ TỐI ƯU: 500ms thay vì 1000ms
 }
 
 function startNotificationPhase(roomId) {
   console.log(`⏰ Starting notification phase for room ${roomId}`);
   
-  // Set notification state
+  // ✅ TỐI ƯU: Set notification state với timestamp chính xác
+  const now = Date.now();
   notificationStates.set(roomId, {
     active: true,
     remaining: 30, // 30 seconds to respond
-    users_to_notify: [roomId] // Will be populated with actual user IDs
+    users_to_notify: [roomId], // Will be populated with actual user IDs
+    startTime: now,
+    startTimestamp: now, // ✅ THÊM: High precision start time
+    endTimestamp: now + (30 * 1000) // ✅ THÊM: Chính xác thời gian kết thúc
   });
 
   // Get room users
@@ -543,7 +577,15 @@ function startNotificationPhase(roomId) {
     }
   });
 
-  // Start notification countdown
+  // ✅ TỐI ƯU: Start notification countdown với high precision timer
+  const notificationStartTime = Date.now();
+  const notificationEndTime = notificationStartTime + (30 * 1000); // 30 giây
+  
+  // Cập nhật notification state với timestamp
+  const notificationState = notificationStates.get(roomId);
+  notificationState.startTimestamp = notificationStartTime;
+  notificationState.endTimestamp = notificationEndTime;
+  
   const notificationInterval = setInterval(async () => {
     const state = notificationStates.get(roomId);
     if (!state || !state.active) {
@@ -551,14 +593,30 @@ function startNotificationPhase(roomId) {
       return;
     }
 
-    state.remaining--;
+    // ✅ TỐI ƯU: Tính toán chính xác dựa trên timestamp
+    const now = Date.now();
+    const remaining = Math.max(0, Math.ceil((state.endTimestamp - now) / 1000));
+    state.remaining = remaining;
     
-    // Broadcast notification update
+    // ✅ TỐI ƯU: Check số users trong room trước khi broadcast notification
     if (connectionManager && connectionManager.roomConnections.has(parseInt(roomId))) {
+      const usersInRoom = connectionManager.roomConnections.get(parseInt(roomId));
+      
+      // ✅ TỐI ƯU: Nếu không có user nào trong room, dừng notification timer
+      if (!usersInRoom || usersInRoom.size === 0) {
+        console.log(`⚠️ No users in room ${roomId}, stopping notification timer`);
+        clearInterval(notificationInterval);
+        notificationStates.delete(roomId);
+        userResponses.delete(roomId);
+        return;
+      }
+      
       connectionManager.broadcastToRoom({
         type: 'notification_update',
         room_id: parseInt(roomId),
-        remaining: state.remaining
+        remaining: remaining,
+        timestamp: now,
+        endTimestamp: state.endTimestamp
       }, parseInt(roomId));
     } else {
       console.log(`⚠️ Room ${roomId} not found in connections, stopping notification timer`);
@@ -568,7 +626,7 @@ function startNotificationPhase(roomId) {
       return;
     }
 
-    if (state.remaining <= 0) {
+    if (remaining <= 0) {
       // Notification timeout, end room
       clearInterval(notificationInterval);
       notificationStates.delete(roomId);
@@ -587,7 +645,7 @@ function startNotificationPhase(roomId) {
         }
       });
     }
-  }, 1000);
+  }, 500); // ✅ TỐI ƯU: 500ms thay vì 1000ms
 }
 
 module.exports = { 
