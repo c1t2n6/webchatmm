@@ -106,8 +106,15 @@ export class UIModule {
     }
 
     showModal(modalId) {
+        console.log('🔍 UI - showModal called for:', modalId);
+        
         const modal = document.getElementById(modalId);
-        if (modal) modal.classList.remove('hidden');
+        if (modal) {
+            console.log('🔍 UI - Showing modal:', modalId);
+            modal.classList.remove('hidden');
+        } else {
+            console.log('🔍 UI - Modal not found:', modalId);
+        }
     }
 
     hideModal(modalId) {

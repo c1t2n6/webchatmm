@@ -20,8 +20,7 @@ class MapmoApp {
         this.currentUser = null;
         this.currentRoom = null;
         
-        // ✅ THÊM: Flag để track profile wizard state
-        this.showingProfileWizard = false;
+        // Clean state management
         
         // ✅ THÊM: Flag để tránh duplicate event listeners
         this.eventsBound = false;
@@ -226,25 +225,102 @@ class MapmoApp {
 
     // Navigation
     handleChatClick() {
+        console.log('🔍 App - handleChatClick called');
+        
         const token = localStorage.getItem('access_token');
         if (!token) {
+            console.log('🔍 App - No token, showing login modal');
             this.uiModule.showModal('loginModal');
         } else if (!this.currentUser) {
+            console.log('🔍 App - No currentUser, checking auth status');
             this.authModule.checkAuthStatus().then(() => {
                 if (this.currentUser) {
-                    this.uiModule.showWaitingRoom();
+                    this.handleAuthenticatedChatClick();
                 } else {
+                    console.log('🔍 App - No user after auth check, showing login modal');
                     this.uiModule.showModal('loginModal');
                 }
             });
         } else {
+            this.handleAuthenticatedChatClick();
+        }
+    }
+
+    // ✅ NEW: Handle chat click for authenticated users
+    handleAuthenticatedChatClick() {
+        console.log('🔍 App - Handling authenticated chat click');
+        
+        // Check if profile is completed
+        if (this.currentUser && !this.currentUser.profile_completed) {
+            console.log('🔍 App - Profile not completed, showing smart prompt');
+            this.showProfilePrompt();
+        } else {
+            console.log('🔍 App - Profile completed, showing waiting room');
             this.uiModule.showWaitingRoom();
         }
     }
 
+    // ✅ NEW: Show smart profile completion prompt
+    showProfilePrompt() {
+        // Create and show profile prompt modal
+        const modal = document.createElement('div');
+        modal.id = 'profilePromptModal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4">
+                <div class="text-center mb-6">
+                    <div class="text-4xl mb-4">🎯</div>
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                        Setup profile để chat hiệu quả hơn?
+                    </h3>
+                    <p class="text-gray-600 dark:text-gray-300">
+                        Profile giúp bạn match với những người phù hợp hơn. Chỉ mất 2 phút thôi!
+                    </p>
+                </div>
+                
+                <div class="space-y-3">
+                    <button id="setupProfileNow" class="w-full bg-primary text-white py-3 px-4 rounded-xl hover:bg-opacity-90 transition-colors font-semibold">
+                        ✨ Setup ngay (2 phút)
+                    </button>
+                    <button id="skipProfileSetup" class="w-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-3 px-4 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                        Chat với thông tin cơ bản
+                    </button>
+                </div>
+                
+                <p class="text-xs text-gray-500 text-center mt-4">
+                    Bạn có thể setup profile sau trong phần cài đặt
+                </p>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Handle buttons
+        document.getElementById('setupProfileNow').addEventListener('click', () => {
+            document.body.removeChild(modal);
+            this.uiModule.showProfileWizard();
+        });
+        
+        document.getElementById('skipProfileSetup').addEventListener('click', () => {
+            document.body.removeChild(modal);
+            this.uiModule.showWaitingRoom();
+        });
+        
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                document.body.removeChild(modal);
+                this.uiModule.showWaitingRoom();
+            }
+        });
+    }
+
     handleVoiceClick() {
+        console.log('🔍 App - handleVoiceClick called');
+        
         const token = localStorage.getItem('access_token');
         if (!token) {
+            console.log('🔍 App - No token for voice, showing login modal');
             this.uiModule.showModal('loginModal');
         } else {
             this.utilsModule.showError('Tính năng Voice Call sẽ ra mắt sớm!');

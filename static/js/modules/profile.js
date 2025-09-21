@@ -88,11 +88,9 @@ export class ProfileModule {
     }
 
     skipProfile() {
-        // ✅ SỬA: Không dùng localStorage nữa, chỉ set profile_completed = true trong database
+        // Set profile as completed (skipped)
         this.app.currentUser.profile_completed = true;
         
-        // ✅ THÊM: Reset flag khi kết thúc profile wizard
-        this.app.showingProfileWizard = false;
         this.app.uiModule.hideProfileWizard();
         this.app.uiModule.showWaitingRoom();
     }
@@ -140,9 +138,7 @@ export class ProfileModule {
                 }
                 
                 this.app.currentUser.profile_completed = true;
-                // ✅ SỬA: Xóa localStorage profile check, chỉ dùng database
-                // ✅ THÊM: Reset flag khi hoàn thành profile wizard
-                this.app.showingProfileWizard = false;
+                
                 this.app.uiModule.hideProfileWizard();
                 this.app.uiModule.showWaitingRoom();
             } else {

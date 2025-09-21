@@ -19,12 +19,6 @@ export class AuthModule {
     async checkAuthStatus() {
         console.log('🔍 Auth - checkAuthStatus() called');
         
-        // ✅ THÊM: Skip auth check nếu đang hiển thị profile wizard sau signup
-        if (this.app.showingProfileWizard) {
-            console.log('🔍 Auth - Profile wizard is showing after signup, skipping auth check');
-            return;
-        }
-        
         const token = localStorage.getItem('access_token');
         console.log('🔍 Auth - Token found:', !!token);
         
@@ -212,8 +206,11 @@ export class AuthModule {
 
             if (response.ok) {
                 const data = await response.json();
+                
+                // Save token and user data
                 localStorage.setItem('access_token', data.access_token);
                 this.app.currentUser = data.user;
+                
                 // Ensure default values for critical fields
                 if (!this.app.currentUser.status) {
                     this.app.currentUser.status = 'idle';
@@ -221,20 +218,12 @@ export class AuthModule {
                 if (!this.app.currentUser.current_room_id) {
                     this.app.currentUser.current_room_id = null;
                 }
-                this.app.uiModule.hideModal('signupModal');
-                this.app.uiModule.showAuthenticatedUI();
                 
-                // ✅ THÊM: Set flag để tránh checkAuthStatus override profile wizard
-                this.app.showingProfileWizard = true;
-                this.app.uiModule.showProfileWizard();
+                console.log('🔍 Signup - Success, user:', this.app.currentUser);
                 
-                // ✅ THÊM: Auto-reset flag sau 30 giây để tránh stuck
-                setTimeout(() => {
-                    if (this.app.showingProfileWizard) {
-                        console.log('🔍 Auth - Auto-resetting showingProfileWizard flag after timeout');
-                        this.app.showingProfileWizard = false;
-                    }
-                }, 30000);
+                // ✅ NEW UX: Show success message then clean exit
+                this.showSignupSuccess();
+                
             } else {
                 const error = await response.json();
                 this.app.utilsModule.showError(error.detail || 'Đăng ký thất bại');
@@ -243,6 +232,38 @@ export class AuthModule {
             console.error('Signup error:', error);
             this.app.utilsModule.showError('Lỗi kết nối');
         }
+    }
+
+    // ✅ NEW: Show success message then clean exit
+    showSignupSuccess() {
+        // Show success message in signup modal
+        const signupModal = document.getElementById('signupModal');
+        if (signupModal) {
+            signupModal.innerHTML = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+                        <div class="text-6xl mb-4">🎉</div>
+                        <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                            Đăng ký thành công!
+                        </h3>
+                        <p class="text-gray-600 dark:text-gray-300 mb-6">
+                            Chào mừng bạn đến với Mapmo.vn! <br>
+                            Bạn có thể bắt đầu chat ngay bây giờ.
+                        </p>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-primary h-2 rounded-full transition-all duration-2000 signup-progress" style="width: 100%"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Auto close after 2.5 seconds and return to landing page
+        setTimeout(() => {
+            this.app.uiModule.hideModal('signupModal');
+            this.app.uiModule.showLandingPage();
+            console.log('🔍 Signup - Clean exit completed');
+        }, 2500);
     }
 
     async logout() {
