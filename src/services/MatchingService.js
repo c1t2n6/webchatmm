@@ -151,6 +151,19 @@ class MatchingService {
         return null;
       }
 
+      // ✅ NEW: Check entry mode compatibility
+      const user1SearchData = this.searchingUsers.get(user1Id);
+      const user2SearchData = this.searchingUsers.get(user2Id);
+      
+      const isEntryModeCompatible = this.checkEntryModeCompatibility(user1SearchData, user2SearchData);
+      if (!isEntryModeCompatible) {
+        console.log(`❌ Entry mode incompatible: ${user1SearchData.entry_mode} vs ${user2SearchData.entry_mode}`);
+        // Put users back in queue
+        this.matchingQueue.unshift(user2Id, user1Id);
+        this.matchingInProgress = false;
+        return null;
+      }
+
       // Check compatibility
       const isCompatible = await this.checkCompatibility(user1, user2);
       if (!isCompatible) {
@@ -161,8 +174,9 @@ class MatchingService {
         return null;
       }
 
-      // Create room
-      const room = await this.createRoom(user1, user2);
+      // Create room với entry_mode
+      const entryMode = user1SearchData.entry_mode || 'chat';
+      const room = await this.createRoom(user1, user2, entryMode);
       if (!room) {
         console.log(`❌ Failed to create room`);
         // Put users back in queue
@@ -256,9 +270,9 @@ class MatchingService {
   }
 
   // Create room for matched users
-  async createRoom(user1, user2) {
+  async createRoom(user1, user2, entryMode = 'chat') {
     try {
-      console.log(`🏠 Creating room for user ${user1.id} and user ${user2.id}`);
+      console.log(`🏠 Creating room for user ${user1.id} and user ${user2.id} with entry_mode: ${entryMode}`);
 
       const roomData = {
         type: 'chat',
@@ -267,7 +281,12 @@ class MatchingService {
         like_responses: {},
         keep_active_responses: {},
         reveal_level: 0,
-        keep_active: false
+        keep_active: false,
+        // ✅ NEW: Add entry mode support
+        entry_mode: entryMode,
+        current_mode: entryMode,
+        voice_call_active: false,
+        both_kept: false
       };
 
       const room = await this.roomModel.create(roomData);
@@ -349,6 +368,8 @@ class MatchingService {
 
   // ✅ THÊM: Send match_found messages chỉ 1 lần duy nhất
   sendMatchFoundOnce(user1Id, user2Id, room, user1, user2) {
+    const entryMode = room.entry_mode || 'chat';
+    
     const matchMessage1 = {
       type: 'match_found',
       room_id: room.id,
@@ -358,7 +379,8 @@ class MatchingService {
         nickname: user2.nickname,
         avatar_url: user2.avatar_url
       },
-      icebreaker: "Chào bạn! Hãy bắt đầu cuộc trò chuyện nhé! 😊"
+      icebreaker: entryMode === 'voice' ? "Chào bạn! Hãy bắt đầu cuộc gọi nhé! 📞" : "Chào bạn! Hãy bắt đầu cuộc trò chuyện nhé! 😊",
+      entry_mode: entryMode
     };
 
     const matchMessage2 = {
@@ -370,7 +392,8 @@ class MatchingService {
         nickname: user1.nickname,
         avatar_url: user1.avatar_url
       },
-      icebreaker: "Chào bạn! Hãy bắt đầu cuộc trò chuyện nhé! 😊"
+      icebreaker: entryMode === 'voice' ? "Chào bạn! Hãy bắt đầu cuộc gọi nhé! 📞" : "Chào bạn! Hãy bắt đầu cuộc trò chuyện nhé! 😊",
+      entry_mode: entryMode
     };
 
     // Send to user1
@@ -385,9 +408,106 @@ class MatchingService {
 
     if (sent1 && sent2) {
       console.log(`📢 Sent match_found messages to users ${user1Id} and ${user2Id}`);
+      
+      // ✅ NEW: Auto-initiate voice call if entry mode is 'voice'
+      if (entryMode === 'voice') {
+        console.log(`📞 Entry mode is voice - auto-initiating voice call...`);
+        this.autoInitiateVoiceCall(user1Id, user2Id, room.id);
+      }
     } else {
       console.log(`⚠️ Some messages failed to send, but not retrying to avoid duplicates`);
     }
+  }
+
+  // ✅ NEW: Auto-initiate voice call after matching
+  async autoInitiateVoiceCall(callerId, calleeId, roomId) {
+    try {
+      console.log(`📞 Auto-initiating voice call: ${callerId} -> ${calleeId} in room ${roomId}`);
+      
+      // ✅ IMPROVED: Wait and check that both users are in the room before initiating
+      const maxAttempts = 10; // 10 attempts = 5 seconds total
+      let attempt = 0;
+      
+      const checkAndInitiate = async () => {
+        attempt++;
+        
+        // Check if both users are in the room
+        const isCallerInRoom = this.connectionManager.isUserInRoom(callerId, roomId);
+        const isCalleeInRoom = this.connectionManager.isUserInRoom(calleeId, roomId);
+        
+        console.log(`📞 Attempt ${attempt}/${maxAttempts}: Caller ${callerId} in room: ${isCallerInRoom}, Callee ${calleeId} in room: ${isCalleeInRoom}`);
+        
+        if (isCallerInRoom && isCalleeInRoom) {
+          // Both users are in the room, proceed with call initiation
+          try {
+            // Get voice call service from global instance
+            const voiceCallService = global.voiceCallService;
+            if (!voiceCallService) {
+              console.error('❌ VoiceCallService not available for auto-initiation');
+              return;
+            }
+
+            // Initiate the call
+            const result = await voiceCallService.initiateCall(callerId, calleeId, roomId);
+            
+            if (result.success) {
+              console.log(`✅ Auto voice call initiated successfully: ${result.data.callId}`);
+            } else {
+              console.error(`❌ Auto voice call initiation failed:`, result.error);
+              // If it's a validation error, retry once more after a short delay
+              if (result.error?.code === 'USERS_NOT_IN_SAME_ROOM' && attempt < maxAttempts) {
+                console.log(`⚠️ Validation failed, retrying in 500ms...`);
+                setTimeout(checkAndInitiate, 500);
+              }
+            }
+          } catch (error) {
+            console.error('❌ Error in auto voice call initiation:', error);
+          }
+        } else if (attempt < maxAttempts) {
+          // Users not ready yet, wait and retry
+          setTimeout(checkAndInitiate, 500); // Wait 500ms before retry
+        } else {
+          // Max attempts reached, users still not in room
+          console.error(`❌ Auto voice call failed: Users not in room after ${maxAttempts} attempts`);
+        }
+      };
+      
+      // Start checking after initial delay
+      setTimeout(checkAndInitiate, 1000); // Wait 1 second first
+      
+    } catch (error) {
+      console.error('❌ Error setting up auto voice call:', error);
+    }
+  }
+
+  // ✅ NEW: Check entry mode compatibility
+  checkEntryModeCompatibility(user1SearchData, user2SearchData) {
+    const user1EntryMode = user1SearchData.entry_mode || 'chat';
+    const user2EntryMode = user2SearchData.entry_mode || 'chat';
+    const user1Preference = user1SearchData.match_preference || 'same_entry_mode';
+    const user2Preference = user2SearchData.match_preference || 'same_entry_mode';
+
+    console.log(`🔍 Checking entry mode compatibility:`);
+    console.log(`  User 1: ${user1EntryMode} (preference: ${user1Preference})`);
+    console.log(`  User 2: ${user2EntryMode} (preference: ${user2Preference})`);
+
+    // Both users prefer same entry mode
+    if (user1Preference === 'same_entry_mode' && user2Preference === 'same_entry_mode') {
+      const compatible = user1EntryMode === user2EntryMode;
+      console.log(`  Result: ${compatible ? 'Compatible' : 'Incompatible'} (same entry mode required)`);
+      return compatible;
+    }
+
+    // Allow any entry mode (future feature)
+    if (user1Preference === 'any' || user2Preference === 'any') {
+      console.log(`  Result: Compatible (any mode allowed)`);
+      return true;
+    }
+
+    // Default: require same entry mode
+    const compatible = user1EntryMode === user2EntryMode;
+    console.log(`  Result: ${compatible ? 'Compatible' : 'Incompatible'} (default: same entry mode)`);
+    return compatible;
   }
 }
 

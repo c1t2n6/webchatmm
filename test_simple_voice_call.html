@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Voice Call Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .test-button:hover {
+            background: #45a049;
+        }
+        .log {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>Simple Voice Call Test (Port 8000)</h1>
+    
+    <div>
+        <button class="test-button" onclick="testVoiceCallFlow()">Test Voice Call Flow</button>
+        <button class="test-button" onclick="testCallInterface()">Test Call Interface</button>
+        <button class="test-button" onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div id="status" class="status"></div>
+    <div id="log" class="log"></div>
+
+    <script>
+        let log = [];
+        
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            log.push(logEntry);
+            document.getElementById('log').textContent = log.join('\n');
+            console.log(logEntry);
+        }
+
+        function clearLog() {
+            log = [];
+            document.getElementById('log').textContent = '';
+        }
+
+        function setStatus(message, type = 'info') {
+            const element = document.getElementById('status');
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // Test Voice Call Flow
+        async function testVoiceCallFlow() {
+            try {
+                addLog('=== TESTING VOICE CALL FLOW ===');
+                
+                // Check if app is available
+                if (typeof window.mapmoApp === 'undefined') {
+                    setStatus('MapmoApp not available', 'error');
+                    addLog('MapmoApp not available', 'error');
+                    return;
+                }
+                
+                const app = window.mapmoApp;
+                addLog(`App found: ${!!app}`);
+                
+                // Check prerequisites
+                if (!app.currentUser) {
+                    setStatus('User not authenticated', 'error');
+                    addLog('User not authenticated', 'error');
+                    return;
+                }
+                
+                addLog(`Current user: ${app.currentUser.username}`);
+                
+                // Check VoiceCallManager
+                if (!app.voiceCallManager) {
+                    setStatus('VoiceCallManager not initialized', 'error');
+                    addLog('VoiceCallManager not initialized', 'error');
+                    return;
+                }
+                
+                addLog(`VoiceCallManager found: ${!!app.voiceCallManager}`);
+                
+                // Check CallScreenManager
+                if (!app.callScreenManager) {
+                    setStatus('CallScreenManager not initialized', 'error');
+                    addLog('CallScreenManager not initialized', 'error');
+                    return;
+                }
+                
+                addLog(`CallScreenManager found: ${!!app.callScreenManager}`);
+                
+                // Simulate voice match found
+                const mockMatchData = {
+                    room_id: 'test-room-123',
+                    matched_user: {
+                        id: 'test-user-456',
+                        nickname: 'Test User',
+                        username: 'testuser',
+                        avatar_url: null
+                    },
+                    icebreaker: 'Test voice call',
+                    entry_mode: 'voice'
+                };
+                
+                addLog('Simulating voice match found...');
+                addLog(`Match data: ${JSON.stringify(mockMatchData, null, 2)}`);
+                
+                // Call handleVoiceMatchFound
+                await app.handleVoiceMatchFound(mockMatchData);
+                
+                addLog('handleVoiceMatchFound called');
+                
+                // Check if call screen is visible
+                setTimeout(() => {
+                    const callScreen = document.getElementById('call-screen');
+                    if (callScreen) {
+                        const isVisible = !callScreen.classList.contains('hidden') && callScreen.classList.contains('show');
+                        addLog(`Call screen visible: ${isVisible}`);
+                        addLog(`Call screen classes: ${callScreen.className}`);
+                        
+                        if (isVisible) {
+                            setStatus('Voice call flow test successful!', 'success');
+                            addLog('Voice call flow test successful!', 'success');
+                        } else {
+                            setStatus('Call screen not visible', 'error');
+                            addLog('Call screen not visible', 'error');
+                        }
+                    } else {
+                        setStatus('Call screen element not found', 'error');
+                        addLog('Call screen element not found', 'error');
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                setStatus(`Voice call flow test failed: ${error.message}`, 'error');
+                addLog(`Voice call flow test error: ${error.message}`, 'error');
+            }
+        }
+
+        // Test Call Interface
+        async function testCallInterface() {
+            try {
+                addLog('=== TESTING CALL INTERFACE ===');
+                
+                if (typeof window.mapmoApp === 'undefined') {
+                    setStatus('MapmoApp not available', 'error');
+                    return;
+                }
+                
+                const app = window.mapmoApp;
+                
+                if (!app.voiceCallManager) {
+                    setStatus('VoiceCallManager not available', 'error');
+                    return;
+                }
+                
+                // Test showCallInterface
+                addLog('Testing showCallInterface...');
+                app.voiceCallManager.showCallInterface('Test Caller', 'Đang kết nối...');
+                
+                // Check if call screen is visible
+                setTimeout(() => {
+                    const callScreen = document.getElementById('call-screen');
+                    if (callScreen) {
+                        const isVisible = !callScreen.classList.contains('hidden') && callScreen.classList.contains('show');
+                        addLog(`Call screen visible: ${isVisible}`);
+                        addLog(`Call screen classes: ${callScreen.className}`);
+                        
+                        if (isVisible) {
+                            setStatus('Call interface test successful!', 'success');
+                            addLog('Call interface test successful!', 'success');
+                        } else {
+                            setStatus('Call interface not visible', 'error');
+                            addLog('Call interface not visible', 'error');
+                        }
+                    } else {
+                        setStatus('Call screen element not found', 'error');
+                        addLog('Call screen element not found', 'error');
+                    }
+                }, 500);
+                
+            } catch (error) {
+                setStatus(`Call interface test failed: ${error.message}`, 'error');
+                addLog(`Call interface test error: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            addLog('Simple Voice Call Test loaded');
+            addLog(`MapmoApp available: ${typeof window.mapmoApp !== 'undefined'}`);
+            
+            // Check for call screen element
+            const callScreen = document.getElementById('call-screen');
+            addLog(`Call screen element found: ${!!callScreen}`);
+            
+            if (callScreen) {
+                addLog(`Call screen classes: ${callScreen.className}`);
+                addLog(`Call screen hidden: ${callScreen.classList.contains('hidden')}`);
+                addLog(`Call screen show: ${callScreen.classList.contains('show')}`);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -26,6 +26,10 @@ export class UtilsModule {
         alert(`Thành công: ${message}`);
     }
 
+    showInfo(message) {
+        alert(`Thông báo: ${message}`);
+    }
+
     handleImageReveal(data) {
         console.log('Image reveal event:', data);
     }

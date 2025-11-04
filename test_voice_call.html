@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Voice Call Debug</title>
+</head>
+<body>
+    <h1>Voice Call Debug Test</h1>
+    
+    <div>
+        <h3>Debug Info:</h3>
+        <div id="debug-info"></div>
+    </div>
+    
+    <div>
+        <h3>Actions:</h3>
+        <button id="check-status">Check Status</button>
+        <button id="init-voice">Init Voice Manager</button>
+        <button id="test-voice-click">Test Voice Click</button>
+        <button id="check-websocket">Check WebSocket</button>
+    </div>
+    
+    <div>
+        <h3>Console Output:</h3>
+        <div id="console-output" style="background: #f0f0f0; padding: 10px; height: 400px; overflow-y: scroll;"></div>
+    </div>
+
+    <script>
+        const debugInfo = document.getElementById('debug-info');
+        const consoleOutput = document.getElementById('console-output');
+        
+        // Wait for potential app to load
+        let appCheckAttempts = 0;
+        const maxAttempts = 50; // 5 seconds with 100ms intervals
+        
+        // Override console.log to show in page
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const div = document.createElement('div');
+            div.textContent = args.join(' ');
+            consoleOutput.appendChild(div);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        };
+        
+        function updateDebugInfo() {
+            const app = window.mapmoApp;
+            
+            // Check if app is accessible from parent window (if this is in an iframe)
+            const parentApp = window.parent?.mapmoApp;
+            const actualApp = app || parentApp;
+            
+            debugInfo.innerHTML = `
+                <p><strong>App exists (current):</strong> ${!!app}</p>
+                <p><strong>App exists (parent):</strong> ${!!parentApp}</p>
+                <p><strong>Active app:</strong> ${!!actualApp}</p>
+                <p><strong>Current User:</strong> ${!!actualApp?.currentUser} (${actualApp?.currentUser?.username || 'N/A'})</p>
+                <p><strong>Chat Module:</strong> ${!!actualApp?.chatModule}</p>
+                <p><strong>WebSocket Manager:</strong> ${!!actualApp?.chatModule?.webSocketManager}</p>
+                <p><strong>WebSocket:</strong> ${!!actualApp?.chatModule?.webSocketManager?.websocket}</p>
+                <p><strong>Voice Call Manager:</strong> ${!!actualApp?.voiceCallManager}</p>
+                <p><strong>Is Searching:</strong> ${actualApp?.isSearching || false}</p>
+                <p><strong>Current Room:</strong> ${actualApp?.currentRoom?.id || 'None'}</p>
+                <p><strong>App check attempts:</strong> ${appCheckAttempts}/${maxAttempts}</p>
+            `;
+            
+            // Store found app for other functions
+            window.activeApp = actualApp;
+        }
+        
+        document.getElementById('check-status').onclick = () => {
+            console.log('=== STATUS CHECK ===');
+            updateDebugInfo();
+            
+            const app = window.activeApp || window.mapmoApp;
+            if (app) {
+                console.log('App object:', app);
+                console.log('Chat module methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(app.chatModule || {})));
+                console.log('WebSocket state:', app.chatModule?.webSocketManager?.websocket?.readyState);
+            } else {
+                console.log('No app found - checking document state:', document.readyState);
+                console.log('Checking window vars:', Object.keys(window).filter(k => k.includes('app') || k.includes('mapmo')));
+            }
+        };
+        
+        document.getElementById('init-voice').onclick = async () => {
+            console.log('=== INIT VOICE MANAGER ===');
+            const app = window.mapmoApp;
+            if (app) {
+                const success = await app.initVoiceCallManager();
+                console.log('Init result:', success);
+                updateDebugInfo();
+            }
+        };
+        
+        document.getElementById('test-voice-click').onclick = async () => {
+            console.log('=== TEST VOICE CLICK ===');
+            const app = window.mapmoApp;
+            if (app) {
+                await app.handleVoiceClick();
+            }
+        };
+        
+        document.getElementById('check-websocket').onclick = () => {
+            console.log('=== WEBSOCKET CHECK ===');
+            const app = window.mapmoApp;
+            if (app?.chatModule?.webSocketManager) {
+                const ws = app.chatModule.webSocketManager.websocket;
+                console.log('WebSocket object:', ws);
+                console.log('WebSocket readyState:', ws?.readyState);
+                console.log('WebSocket URL:', ws?.url);
+                
+                // Try to establish connection if not connected
+                if (!ws || ws.readyState !== 1) {
+                    console.log('Trying to connect WebSocket...');
+                    app.chatModule.webSocketManager.connect();
+                }
+            }
+        };
+        
+        // Auto-update every 2 seconds
+        setInterval(updateDebugInfo, 2000);
+        updateDebugInfo();
+    </script>
+</body>
+</html>

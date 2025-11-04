@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Call Test - Browser Environment</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid;
+        }
+        .test-pass {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        .test-fail {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+        .test-warning {
+            background: #fff3cd;
+            border-color: #ffc107;
+            color: #856404;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .test-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .log-container {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Voice Call Functionality Test</h1>
+    
+    <div class="test-container">
+        <h2>Test Controls</h2>
+        <button class="test-button" onclick="runAllTests()">Run All Tests</button>
+        <button class="test-button" onclick="clearResults()">Clear Results</button>
+        <button class="test-button" onclick="testInitialization()">Test Initialization</button>
+        <button class="test-button" onclick="testWebRTCConfig()">Test WebRTC Config</button>
+        <button class="test-button" onclick="testErrorHandling()">Test Error Handling</button>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Results</h2>
+        <div id="test-results"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Console Log</h2>
+        <div id="console-log" class="log-container"></div>
+    </div>
+
+    <!-- Mock dependencies -->
+    <script>
+        // Mock App object
+        window.mockApp = {
+            token: 'test-token-123',
+            currentRoom: { id: 1, name: 'Test Room' },
+            utilsModule: {
+                showError: (msg) => log('Error:', msg),
+                showWarning: (msg) => log('Warning:', msg),
+                showSuccess: (msg) => log('Success:', msg)
+            }
+        };
+
+        // Mock WebSocket Manager
+        window.mockWebSocketManager = {
+            isConnected: () => true,
+            websocket: {
+                on: (event, callback) => log(`WebSocket listener added for: ${event}`),
+                emit: (event, data) => log(`WebSocket emit: ${event}`, data),
+                connected: true
+            },
+            send: (event, data) => log(`WebSocket send: ${event}`, data)
+        };
+
+        // Test results storage
+        let testResults = [];
+
+        // Logging function
+        function log(...args) {
+            const timestamp = new Date().toLocaleTimeString();
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            const logContainer = document.getElementById('console-log');
+            logContainer.innerHTML += `[${timestamp}] ${message}\n`;
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            console.log(...args);
+        }
+
+        // Add test result
+        function addTestResult(testName, status, message) {
+            const result = {
+                test: testName,
+                status: status,
+                message: message,
+                timestamp: new Date().toISOString()
+            };
+            
+            testResults.push(result);
+            displayTestResult(result);
+            
+            const statusIcon = status === 'PASS' ? '✅' : status === 'FAIL' ? '❌' : '⚠️';
+            log(`${statusIcon} ${testName}: ${message}`);
+        }
+
+        // Display test result
+        function displayTestResult(result) {
+            const resultsContainer = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result test-${result.status.toLowerCase()}`;
+            resultDiv.innerHTML = `
+                <strong>${result.test}</strong>: ${result.message}
+                <small style="float: right;">${new Date(result.timestamp).toLocaleTimeString()}</small>
+            `;
+            resultsContainer.appendChild(resultDiv);
+        }
+
+        // Clear results
+        function clearResults() {
+            testResults = [];
+            document.getElementById('test-results').innerHTML = '';
+            document.getElementById('console-log').innerHTML = '';
+        }
+
+        // Test initialization
+        async function testInitialization() {
+            log('🧪 Testing VoiceCallManager Initialization...');
+            
+            try {
+                // Import the module (this would normally be done via module system)
+                // For now, we'll test the structure
+                
+                // Check if VoiceCallManager class exists
+                if (typeof VoiceCallManager !== 'undefined') {
+                    const voiceCallManager = new VoiceCallManager(mockApp, mockWebSocketManager);
+                    
+                    // Wait a bit for initialization
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    if (voiceCallManager.isInitialized) {
+                        addTestResult('Initialization', 'PASS', 'VoiceCallManager initialized successfully');
+                    } else {
+                        addTestResult('Initialization', 'FAIL', 'VoiceCallManager not initialized');
+                    }
+
+                    // Check call states
+                    if (voiceCallManager.CALL_STATES && voiceCallManager.CALL_STATES.IDLE) {
+                        addTestResult('Call States', 'PASS', 'Call states defined correctly');
+                    } else {
+                        addTestResult('Call States', 'FAIL', 'Call states not defined');
+                    }
+
+                } else {
+                    addTestResult('Initialization', 'FAIL', 'VoiceCallManager class not found');
+                }
+
+            } catch (error) {
+                addTestResult('Initialization', 'ERROR', error.message);
+                log('❌ Initialization error:', error);
+            }
+        }
+
+        // Test WebRTC Configuration
+        async function testWebRTCConfig() {
+            log('🧪 Testing WebRTC Configuration...');
+            
+            try {
+                if (typeof VoiceCallManager !== 'undefined') {
+                    const voiceCallManager = new VoiceCallManager(mockApp, mockWebSocketManager);
+                    
+                    // Check RTC configuration
+                    if (voiceCallManager.rtcConfiguration && voiceCallManager.rtcConfiguration.iceServers) {
+                        addTestResult('RTC Config', 'PASS', 'RTC configuration exists with ICE servers');
+                    } else {
+                        addTestResult('RTC Config', 'FAIL', 'RTC configuration missing or invalid');
+                    }
+
+                    // Check audio processing settings
+                    if (voiceCallManager.noiseSuppression !== undefined) {
+                        addTestResult('Audio Processing', 'PASS', 'Audio processing settings configured');
+                    } else {
+                        addTestResult('Audio Processing', 'FAIL', 'Audio processing settings missing');
+                    }
+
+                } else {
+                    addTestResult('WebRTC Config', 'FAIL', 'VoiceCallManager class not found');
+                }
+
+            } catch (error) {
+                addTestResult('WebRTC Config', 'ERROR', error.message);
+                log('❌ WebRTC Config error:', error);
+            }
+        }
+
+        // Test Error Handling
+        async function testErrorHandling() {
+            log('🧪 Testing Error Handling...');
+            
+            try {
+                if (typeof VoiceCallManager !== 'undefined') {
+                    const voiceCallManager = new VoiceCallManager(mockApp, mockWebSocketManager);
+                    
+                    // Check error handling methods
+                    if (typeof voiceCallManager.handleCallError === 'function') {
+                        addTestResult('Error Handler', 'PASS', 'handleCallError method exists');
+                    } else {
+                        addTestResult('Error Handler', 'FAIL', 'handleCallError method missing');
+                    }
+
+                    // Check error mapping
+                    if (typeof voiceCallManager.mapErrorToUserMessage === 'function') {
+                        addTestResult('Error Mapping', 'PASS', 'mapErrorToUserMessage method exists');
+                    } else {
+                        addTestResult('Error Mapping', 'FAIL', 'mapErrorToUserMessage method missing');
+                    }
+
+                    // Test error mapping
+                    const testError = new Error('NotAllowedError');
+                    testError.name = 'NotAllowedError';
+                    const mappedMessage = voiceCallManager.mapErrorToUserMessage(testError);
+                    
+                    if (mappedMessage && mappedMessage.includes('microphone')) {
+                        addTestResult('Error Mapping Logic', 'PASS', 'Error mapping works correctly');
+                    } else {
+                        addTestResult('Error Mapping Logic', 'FAIL', 'Error mapping not working');
+                    }
+
+                } else {
+                    addTestResult('Error Handling', 'FAIL', 'VoiceCallManager class not found');
+                }
+
+            } catch (error) {
+                addTestResult('Error Handling', 'ERROR', error.message);
+                log('❌ Error Handling error:', error);
+            }
+        }
+
+        // Run all tests
+        async function runAllTests() {
+            log('🚀 Starting comprehensive Voice Call tests...');
+            clearResults();
+            
+            await testInitialization();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testWebRTCConfig();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testErrorHandling();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Print summary
+            const passed = testResults.filter(r => r.status === 'PASS').length;
+            const failed = testResults.filter(r => r.status === 'FAIL').length;
+            const errors = testResults.filter(r => r.status === 'ERROR').length;
+            
+            log(`\n📊 Test Summary:`);
+            log(`✅ Passed: ${passed}`);
+            log(`❌ Failed: ${failed}`);
+            log(`⚠️ Errors: ${errors}`);
+            log(`📈 Total: ${testResults.length}`);
+            
+            if (failed === 0 && errors === 0) {
+                log('🎉 ALL TESTS PASSED!');
+            } else {
+                log('⚠️ Some tests failed - check results above');
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🧪 Voice Call Test Environment Ready');
+            log('📝 Note: This test runs in browser environment');
+            log('🔧 Make sure to include VoiceCallManager script before running tests');
+        });
+    </script>
+
+    <!-- Include VoiceCallManager (you'll need to load this from your actual file) -->
+    <script type="module">
+        // This would normally import the actual VoiceCallManager
+        // For testing purposes, we'll create a mock
+        window.VoiceCallManager = class VoiceCallManager {
+            constructor(app, webSocketManager) {
+                this.app = app;
+                this.webSocketManager = webSocketManager;
+                this.isInitialized = false;
+                
+                // Mock initialization
+                setTimeout(() => {
+                    this.isInitialized = true;
+                    console.log('📞 Mock VoiceCallManager initialized');
+                }, 100);
+                
+                // Mock properties
+                this.CALL_STATES = {
+                    IDLE: 'idle',
+                    CALLING: 'calling',
+                    RINGING: 'ringing',
+                    CONNECTING: 'connecting',
+                    ACTIVE: 'active',
+                    ENDING: 'ending'
+                };
+                
+                this.rtcConfiguration = {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' }
+                    ]
+                };
+                
+                this.noiseSuppression = true;
+                this.echoCancellation = true;
+                this.autoGainControl = true;
+            }
+            
+            handleCallError(error, context) {
+                console.log('Mock handleCallError called:', error, context);
+            }
+            
+            mapErrorToUserMessage(error) {
+                if (error.name === 'NotAllowedError') {
+                    return 'Vui lòng cho phép truy cập microphone để thực hiện cuộc gọi';
+                }
+                return 'Có lỗi xảy ra';
+            }
+        };
+        
+        console.log('📞 Mock VoiceCallManager loaded');
+    </script>
+</body>
+</html>

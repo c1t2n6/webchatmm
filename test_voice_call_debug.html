@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Call Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .test-button:hover {
+            background: #45a049;
+        }
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>Voice Call Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Authentication Test</h2>
+        <button class="test-button" onclick="testAuth()">Test Login</button>
+        <button class="test-button" onclick="testLogout()">Test Logout</button>
+        <div id="auth-status" class="status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Voice Call Manager Test</h2>
+        <button class="test-button" onclick="testVoiceCallManager()">Test VoiceCallManager Init</button>
+        <button class="test-button" onclick="testMicrophone()">Test Microphone Access</button>
+        <div id="voice-status" class="status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Voice Matching Test</h2>
+        <button class="test-button" onclick="testVoiceMatching()">Test Voice Matching API</button>
+        <button class="test-button" onclick="testCancelSearch()">Test Cancel Search</button>
+        <div id="matching-status" class="status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. WebRTC Test</h2>
+        <button class="test-button" onclick="testWebRTC()">Test WebRTC Connection</button>
+        <button class="test-button" onclick="testAudioContext()">Test Audio Context</button>
+        <div id="webrtc-status" class="status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Full Flow Test</h2>
+        <button class="test-button" onclick="testFullFlow()">Test Complete Voice Call Flow</button>
+        <div id="flow-status" class="status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Debug Log</h2>
+        <button class="test-button" onclick="clearLog()">Clear Log</button>
+        <div id="debug-log" class="log"></div>
+    </div>
+
+    <script>
+        let debugLog = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            debugLog.push(logEntry);
+            document.getElementById('debug-log').textContent = debugLog.join('\n');
+            console.log(logEntry);
+        }
+
+        function clearLog() {
+            debugLog = [];
+            document.getElementById('debug-log').textContent = '';
+        }
+
+        function setStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // Test 1: Authentication
+        async function testAuth() {
+            try {
+                log('Testing authentication...');
+                
+                // Check if already logged in
+                const token = localStorage.getItem('access_token');
+                if (token) {
+                    log('Token found, testing validity...');
+                    
+                    const response = await fetch('/user/profile', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const user = await response.json();
+                        setStatus('auth-status', `Logged in as: ${user.username}`, 'success');
+                        log(`Authentication successful: ${user.username}`);
+                        return user;
+                    } else {
+                        log('Token invalid, clearing...');
+                        localStorage.removeItem('access_token');
+                    }
+                }
+                
+                // Try to login with test account
+                log('Attempting login...');
+                const loginResponse = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'testuser',
+                        password: 'testpass'
+                    })
+                });
+                
+                if (loginResponse.ok) {
+                    const data = await loginResponse.json();
+                    localStorage.setItem('access_token', data.access_token);
+                    setStatus('auth-status', `Logged in as: ${data.user.username}`, 'success');
+                    log(`Login successful: ${data.user.username}`);
+                    return data.user;
+                } else {
+                    const error = await loginResponse.json();
+                    setStatus('auth-status', `Login failed: ${error.detail}`, 'error');
+                    log(`Login failed: ${error.detail}`);
+                    return null;
+                }
+            } catch (error) {
+                setStatus('auth-status', `Auth test failed: ${error.message}`, 'error');
+                log(`Auth test error: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        async function testLogout() {
+            localStorage.removeItem('access_token');
+            setStatus('auth-status', 'Logged out', 'warning');
+            log('Logged out');
+        }
+
+        // Test 2: Voice Call Manager
+        async function testVoiceCallManager() {
+            try {
+                log('Testing VoiceCallManager initialization...');
+                
+                // Check if app is available
+                if (typeof window.mapmoApp === 'undefined') {
+                    setStatus('voice-status', 'MapmoApp not available', 'error');
+                    log('MapmoApp not available', 'error');
+                    return false;
+                }
+                
+                const app = window.mapmoApp;
+                log(`App found: ${!!app}`);
+                log(`VoiceCallManager exists: ${!!app.voiceCallManager}`);
+                log(`ChatModule exists: ${!!app.chatModule}`);
+                log(`WebSocketManager exists: ${!!app.chatModule?.websocketManager}`);
+                
+                if (!app.voiceCallManager) {
+                    log('Initializing VoiceCallManager...');
+                    const initSuccess = await app.initVoiceCallManager();
+                    if (initSuccess) {
+                        setStatus('voice-status', 'VoiceCallManager initialized successfully', 'success');
+                        log('VoiceCallManager initialized successfully');
+                        return true;
+                    } else {
+                        setStatus('voice-status', 'VoiceCallManager initialization failed', 'error');
+                        log('VoiceCallManager initialization failed', 'error');
+                        return false;
+                    }
+                } else {
+                    setStatus('voice-status', 'VoiceCallManager already initialized', 'success');
+                    log('VoiceCallManager already initialized');
+                    return true;
+                }
+            } catch (error) {
+                setStatus('voice-status', `VoiceCallManager test failed: ${error.message}`, 'error');
+                log(`VoiceCallManager test error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testMicrophone() {
+            try {
+                log('Testing microphone access...');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                
+                log('Microphone access granted');
+                log(`Audio tracks: ${stream.getAudioTracks().length}`);
+                
+                // Test audio context
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(stream);
+                const analyser = audioContext.createAnalyser();
+                source.connect(analyser);
+                
+                log('Audio context created successfully');
+                
+                // Clean up
+                stream.getTracks().forEach(track => track.stop());
+                audioContext.close();
+                
+                setStatus('voice-status', 'Microphone access successful', 'success');
+                return true;
+            } catch (error) {
+                setStatus('voice-status', `Microphone access failed: ${error.message}`, 'error');
+                log(`Microphone access error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Test 3: Voice Matching
+        async function testVoiceMatching() {
+            try {
+                log('Testing voice matching API...');
+                
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    setStatus('matching-status', 'Not authenticated', 'error');
+                    log('Not authenticated', 'error');
+                    return false;
+                }
+                
+                const response = await fetch('/chat/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        type: 'voice_call',
+                        entry_mode: 'voice',
+                        match_preference: 'same_entry_mode'
+                    })
+                });
+                
+                const data = await response.json();
+                log(`Voice matching API response: ${response.status}`);
+                log(`Response data: ${JSON.stringify(data, null, 2)}`);
+                
+                if (response.ok) {
+                    if (data.room_id && data.matched_user) {
+                        setStatus('matching-status', `Match found! Room: ${data.room_id}`, 'success');
+                        log(`Match found: Room ${data.room_id}, User: ${data.matched_user.nickname}`);
+                        return data;
+                    } else {
+                        setStatus('matching-status', 'No immediate match, searching...', 'warning');
+                        log('No immediate match, should start searching UI');
+                        return data;
+                    }
+                } else {
+                    setStatus('matching-status', `API failed: ${data.detail}`, 'error');
+                    log(`API failed: ${data.detail}`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                setStatus('matching-status', `Voice matching test failed: ${error.message}`, 'error');
+                log(`Voice matching test error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testCancelSearch() {
+            try {
+                log('Testing cancel search...');
+                
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    setStatus('matching-status', 'Not authenticated', 'error');
+                    return false;
+                }
+                
+                const response = await fetch('/chat/cancel-search', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                log(`Cancel search response: ${response.status}`);
+                log(`Response data: ${JSON.stringify(data, null, 2)}`);
+                
+                if (response.ok) {
+                    setStatus('matching-status', 'Search cancelled successfully', 'success');
+                    log('Search cancelled successfully');
+                    return true;
+                } else {
+                    setStatus('matching-status', `Cancel failed: ${data.detail}`, 'error');
+                    log(`Cancel failed: ${data.detail}`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                setStatus('matching-status', `Cancel search test failed: ${error.message}`, 'error');
+                log(`Cancel search test error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Test 4: WebRTC
+        async function testWebRTC() {
+            try {
+                log('Testing WebRTC connection...');
+                
+                const pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
+                
+                log('PeerConnection created');
+                
+                // Add audio track
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                stream.getTracks().forEach(track => {
+                    pc.addTrack(track, stream);
+                });
+                
+                log('Audio track added');
+                
+                // Test ICE gathering
+                const icePromise = new Promise((resolve) => {
+                    pc.onicecandidate = (event) => {
+                        if (event.candidate) {
+                            log(`ICE candidate: ${event.candidate.candidate}`);
+                        } else {
+                            log('ICE gathering complete');
+                            resolve();
+                        }
+                    };
+                });
+                
+                // Create offer
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                log('Local description set');
+                
+                // Wait for ICE gathering
+                await icePromise;
+                
+                // Clean up
+                pc.close();
+                stream.getTracks().forEach(track => track.stop());
+                
+                setStatus('webrtc-status', 'WebRTC test successful', 'success');
+                log('WebRTC test successful');
+                return true;
+            } catch (error) {
+                setStatus('webrtc-status', `WebRTC test failed: ${error.message}`, 'error');
+                log(`WebRTC test error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testAudioContext() {
+            try {
+                log('Testing Audio Context...');
+                
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                log(`Audio Context state: ${audioContext.state}`);
+                log(`Sample rate: ${audioContext.sampleRate}`);
+                log(`Base latency: ${audioContext.baseLatency}`);
+                
+                audioContext.close();
+                
+                setStatus('webrtc-status', 'Audio Context test successful', 'success');
+                log('Audio Context test successful');
+                return true;
+            } catch (error) {
+                setStatus('webrtc-status', `Audio Context test failed: ${error.message}`, 'error');
+                log(`Audio Context test error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Test 5: Full Flow
+        async function testFullFlow() {
+            try {
+                log('Testing complete voice call flow...');
+                
+                // Step 1: Authentication
+                const user = await testAuth();
+                if (!user) {
+                    setStatus('flow-status', 'Flow test failed at authentication', 'error');
+                    return false;
+                }
+                
+                // Step 2: VoiceCallManager
+                const voiceManagerReady = await testVoiceCallManager();
+                if (!voiceManagerReady) {
+                    setStatus('flow-status', 'Flow test failed at VoiceCallManager', 'error');
+                    return false;
+                }
+                
+                // Step 3: Microphone
+                const micReady = await testMicrophone();
+                if (!micReady) {
+                    setStatus('flow-status', 'Flow test failed at microphone', 'error');
+                    return false;
+                }
+                
+                // Step 4: Voice Matching
+                const matchResult = await testVoiceMatching();
+                if (!matchResult) {
+                    setStatus('flow-status', 'Flow test failed at voice matching', 'error');
+                    return false;
+                }
+                
+                // Step 5: WebRTC
+                const webrtcReady = await testWebRTC();
+                if (!webrtcReady) {
+                    setStatus('flow-status', 'Flow test failed at WebRTC', 'error');
+                    return false;
+                }
+                
+                setStatus('flow-status', 'Complete voice call flow test successful!', 'success');
+                log('Complete voice call flow test successful!');
+                return true;
+            } catch (error) {
+                setStatus('flow-status', `Full flow test failed: ${error.message}`, 'error');
+                log(`Full flow test error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            log('Voice Call Debug Test loaded');
+            log(`MapmoApp available: ${typeof window.mapmoApp !== 'undefined'}`);
+        });
+    </script>
+</body>
+</html>

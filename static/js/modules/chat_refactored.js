@@ -48,6 +48,31 @@ class ChatModule {
         // Wait a bit to ensure DOM is ready
         await new Promise(resolve => setTimeout(resolve, 100));
         
+        // ✅ FIX: Connect WebSocket after authentication check
+        // Delay to ensure auth check has time to complete
+        setTimeout(async () => {
+            if (this.app.currentUser) {
+                console.log('🔍 Chat - Auto-connecting WebSocket for authenticated user');
+                try {
+                    await this.websocketManager.connect();
+                    console.log('✅ Chat - WebSocket auto-connected successfully');
+                    
+                    // Trigger VoiceCallManager init after WebSocket is ready
+                    if (!this.app.voiceCallManager) {
+                        console.log('🔍 Chat - Triggering VoiceCallManager init after WebSocket ready');
+                        setTimeout(async () => {
+                            const success = await this.app.initVoiceCallManager();
+                            console.log('🔍 Chat - VoiceCallManager init result:', success);
+                        }, 500);
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Chat - WebSocket auto-connect failed:', error);
+                }
+            } else {
+                console.log('🔍 Chat - No authenticated user, skipping WebSocket auto-connect');
+            }
+        }, 1000); // Wait 1 second for auth check to complete
+        
         // Check and restore chat state if needed
         if (this.app.currentUser) {
             await this.restoreChatState();
@@ -331,6 +356,24 @@ class ChatModule {
         this.websocketManager.joinRoom(roomId);
         this.setupAfterJoinRoom(roomId);
         
+        // If this room was entered via voice entry mode, start voice call immediately after join
+        try {
+            const isVoiceEntry = this.app.currentRoom && (this.app.currentRoom.entry_mode === 'voice' || this.app.currentRoom.isVoiceCall);
+            if (isVoiceEntry) {
+                console.log('📞 Chat - Voice entry mode detected, preparing to start call');
+                // Ensure VoiceCallManager is ready
+                if (!this.app.voiceCallManager) {
+                    await this.app.initVoiceCallManager();
+                }
+                // Small defer to ensure server handlers are set
+                setTimeout(() => {
+                    this.app.enterVoiceMode();
+                }, 300);
+            }
+        } catch (err) {
+            console.error('❌ Chat - Error starting voice mode after join:', err);
+        }
+
         // ✅ THÊM: Reset flag sau khi connect xong
         setTimeout(() => {
             this.isConnectingWebSocket = false;
@@ -419,9 +462,20 @@ class ChatModule {
     async enterChatRoom(roomId) {
         console.log('🔍 Chat - enterChatRoom called with roomId:', roomId);
         console.log('🔍 Chat - Current user before enter:', this.app.currentUser);
+        console.log('🔍 Chat - Current room before enter:', this.app.currentRoom);
         
-        // Set current room
-        this.app.currentRoom = { id: roomId };
+        // ✅ FIX: Preserve existing room data if available, only update ID if needed
+        if (!this.app.currentRoom || this.app.currentRoom.id !== roomId) {
+            if (this.app.currentRoom && this.app.currentRoom.matched_user) {
+                // Preserve matched_user data when just updating room ID
+                this.app.currentRoom.id = roomId;
+                console.log('🔍 Chat - Preserved matched_user data');
+            } else {
+                // Create new room object
+                this.app.currentRoom = { id: roomId };
+                console.log('🔍 Chat - Created new room object');
+            }
+        }
         
         // Initialize keep active state manager for this room
         this.keepActiveManager.setCurrentRoom(roomId);
@@ -432,11 +486,54 @@ class ChatModule {
         // Connect WebSocket and setup
         await this.connectChatWebSocket(roomId);
         
+        // ✅ ENHANCED: Load room data from backend if missing matched_user
+        if (!this.app.currentRoom.matched_user) {
+            console.log('🔍 Chat - Missing matched_user, fetching room data...');
+            await this.loadRoomData(roomId);
+        }
+        
         // ✅ SỬA: Đồng bộ state trước khi sync countdown
         console.log('🔍 Chat - Synchronizing state before countdown sync...');
         await this.synchronizeStateAfterReload(roomId);
         
         console.log('🔍 Chat - Successfully entered chat room:', roomId);
+    }
+
+    /**
+     * ✅ NEW: Load room data from backend
+     */
+    async loadRoomData(roomId) {
+        try {
+            console.log('🔍 Chat - Loading room data for:', roomId);
+            const token = localStorage.getItem('access_token');
+            
+            const response = await fetch(`/chat/room/${roomId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                const roomData = await response.json();
+                console.log('🔍 Chat - Room data loaded:', roomData);
+                
+                // Update current room with backend data
+                if (roomData) {
+                    // Backend returns room data directly, not nested in 'room'
+                    this.app.currentRoom = {
+                        ...this.app.currentRoom,
+                        ...roomData,
+                        id: roomId // Ensure ID is preserved
+                    };
+                    console.log('✅ Chat - Room data updated:', this.app.currentRoom);
+                    console.log('✅ Chat - Matched user:', this.app.currentRoom.matched_user);
+                }
+            } else {
+                console.warn('⚠️ Chat - Failed to load room data:', response.status);
+            }
+        } catch (error) {
+            console.error('❌ Chat - Error loading room data:', error);
+        }
     }
 
     /**

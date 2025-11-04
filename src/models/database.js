@@ -3,6 +3,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 const config = require('../../config');
+const MigrationRunner = require('../utils/migrationRunner');
 
 class Database {
   constructor() {
@@ -142,13 +143,48 @@ class Database {
       )
     `;
 
+    // Voice Call Tables
+    const createCallSessionsTable = `
+      CREATE TABLE IF NOT EXISTS call_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        room_id INTEGER NOT NULL,
+        caller_id INTEGER NOT NULL,
+        callee_id INTEGER NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'initiated',
+        started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        answered_at DATETIME NULL,
+        ended_at DATETIME NULL,
+        duration INTEGER DEFAULT 0,
+        end_reason VARCHAR(50) NULL,
+        quality_rating INTEGER NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (room_id) REFERENCES rooms(id),
+        FOREIGN KEY (caller_id) REFERENCES users(id),
+        FOREIGN KEY (callee_id) REFERENCES users(id)
+      )
+    `;
+
+    // ✅ REMOVED: call_participants table - not needed for 1-on-1 calls
+    
+    const createUserCallSettingsTable = `
+      CREATE TABLE IF NOT EXISTS user_call_settings (
+        user_id INTEGER PRIMARY KEY,
+        call_notifications BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `;
+
     const tables = [
       createUsersTable,
       createRoomsTable,
       createMessagesTable,
       createReportsTable,
       createMatchingQueueTable,
-      createIcebreakersTable
+      createIcebreakersTable,
+      createCallSessionsTable,
+      createUserCallSettingsTable
     ];
 
     for (const table of tables) {
@@ -156,6 +192,20 @@ class Database {
     }
 
     console.log('✅ Database tables created successfully');
+    
+    // Run migrations after creating base tables
+    await this.runMigrations();
+  }
+
+  async runMigrations() {
+    try {
+      const migrationRunner = new MigrationRunner(this);
+      await migrationRunner.runMigrations();
+    } catch (error) {
+      console.error('❌ Migration error:', error);
+      // Don't throw - allow app to continue with base tables
+      console.log('⚠️ Continuing with base database schema');
+    }
   }
 
   run(sql, params = []) {

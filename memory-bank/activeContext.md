@@ -1,144 +1,242 @@
-# Active Context: Current Development State
+# Active Context: Mapmo.vn Current Development Focus
 
-## Current Focus
-**Post-deployment bug fixes** - The system has been successfully deployed to Render.com but requires immediate fixes for production issues identified in deployment logs.
+## Current Status: CORE FEATURES COMPLETE - ENHANCEMENT PHASE
 
-## Recent Changes
-- ✅ **System Analysis**: Completed comprehensive review of the WebChat Node.js application
-- ✅ **Memory Bank Creation**: Established project documentation structure
-- ✅ **Deployment Preparation**: Identified Render.com as the target deployment platform
-- ✅ **Configuration Review**: Verified all deployment configurations are in place
-- ✅ **Production Deployment**: Successfully deployed to Render.com (https://webchat-nodejs-draft.onrender.com)
-- ✅ **Bug Fixes**: Fixed critical 404 errors and duplicate search issues
+Mapmo.vn has successfully implemented all core functionality for anonymous chat and voice calls with the unique like/reveal system. The application is production-ready and deployed, with focus now shifting to enhancement and polish.
 
-## Current System State
+## Recent Achievements ✅
 
-### ✅ Completed Features
-1. **Core Application**
-   - Node.js/Express server with Socket.IO
-   - SQLite database with proper models
-   - JWT authentication system
-   - Real-time WebSocket communication
-   - User management and profiles
-   - Chat room functionality
-   - Message handling and storage
+### Voice Call System Fixes (Latest Session)
+- **WebSocket Communication**: Fixed missing `send(event, payload)` method in WebSocketManager
+- **Server Event Handling**: Added typed event emission alongside 'message' events
+- **Call Flow**: Fixed currentCall setup in handleCallAccepted for proper offer creation
+- **UI Integration**: Added showCallInterface wrapper for call status display
+- **Code Cleanup**: Removed duplicate initialization calls in app.js
+- **Duration Calculation**: Improved fallback to created_at for call duration
+- **Voice Call Entry Mode**: Implemented direct call flow - matching → room → call (no chat stop)
+- **Auto Call Initiation**: Both users automatically agree to call in voice entry mode
+- **UI Cleanup**: Removed redundant voice call buttons from waiting room and navigation
 
-2. **Security & Middleware**
-   - bcrypt password hashing
-   - JWT token authentication
-   - CORS protection
-   - Rate limiting
-   - Input validation
-   - Error handling
+### Core System Status
+- **Authentication**: JWT + Google Sign-in working perfectly
+- **Matching Algorithm**: Smart matching based on gender, interests, and needs
+- **Chat System**: Real-time messaging with typing indicators
+- **Voice Calls**: WebRTC peer-to-peer audio communication
+- **Like System**: 5-minute timer with progressive photo reveal
+- **Database**: Complete SQLite schema with all necessary tables
 
-3. **Frontend**
-   - Responsive HTML/CSS/JavaScript
-   - Real-time chat interface
-   - User authentication forms
-   - File upload capabilities
-   - Countdown timer system
+## Current Focus Areas 🎯
 
-4. **Deployment Configuration**
-   - `render.yaml` configuration file
-   - `Procfile` for process management
-   - Environment variable configuration
-   - Health check endpoints
-   - Graceful shutdown handling
+### 1. Landing Page Enhancement (Priority: High)
+**Goal**: Implement the immersive café video background with interactive easter eggs
 
-### 🔄 Current Tasks
-1. **Production Bug Fixes** ✅ COMPLETED
-   - Fixed missing favicon.ico endpoint (404 error)
-   - Fixed missing /user/stats endpoint (404 error) 
-   - Fixed missing /default_avatar.jpg endpoint (404 error)
-   - Improved duplicate search prevention in frontend
+**Current State**:
+- Basic landing page with 2 buttons (Chat 💬, Voice Call 📞)
+- Clean, functional interface
+- Missing video background and character interactions
 
-2. **System Monitoring**
-   - Monitor deployment logs for any remaining issues
-   - Verify all endpoints are working correctly
-   - Test user functionality in production
+**Next Steps**:
+- Add video background with café scene
+- Implement hover effects on character elements
+- Add character bubbles: "Bạn muốn call/chat không?"
+- Create smooth zoom transitions
 
-## Next Steps
+**Files to Modify**:
+- `templates/index.html` - Landing page structure
+- `static/css/` - Video background styles
+- `static/js/app.js` - Hover interaction logic
 
-### Immediate Actions
-1. **Monitor Production System** ✅ IN PROGRESS
-   - Watch deployment logs for any new issues
-   - Test all user flows in production
-   - Verify WebSocket connections are stable
-   - Monitor database performance
+### 2. Profile Setup Completion (Priority: High)
+**Goal**: Complete the 4-step profile setup process as specified
 
-2. **User Testing**
-   - Conduct thorough user acceptance testing
-   - Test chat functionality with multiple users
-   - Verify file upload capabilities
-   - Test mobile responsiveness
+**Current State**:
+- Basic profile setup with essential fields
+- Missing Steps 2-4 from requirements
+- Incomplete interest categories
 
-3. **Performance Optimization**
-   - Monitor response times
-   - Optimize database queries if needed
-   - Review memory usage patterns
-   - Implement caching if necessary
+**Next Steps**:
+- Step 2: "Bạn muốn gặp ai?" (Who do you want to meet?)
+- Step 3: "Bạn đang tìm kiếm điều gì?" (What are you looking for?)
+- Step 4: Complete interest selection with all categories
+- Enhanced validation and UI
 
-### Production Status Checklist
-- [x] Verify `package.json` dependencies
-- [x] Check `render.yaml` configuration
-- [x] Validate environment variables
-- [x] Test health check endpoints
-- [x] Deploy to Render.com
-- [x] Fix critical 404 errors
-- [x] Fix duplicate search issues
-- [x] Monitor deployment logs
-- [ ] Complete user testing
-- [ ] Performance optimization
+**Files to Modify**:
+- `static/js/modules/profile-edit.js` - Profile setup logic
+- `templates/index.html` - Profile setup UI
+- `src/models/User.js` - Database schema updates
 
-## Active Decisions
+### 3. Voice Call Entry Mode (Priority: Medium)
+**Goal**: Implement direct voice call entry without chat step
 
-### Deployment Platform: Render.com
-**Rationale**: 
-- Excellent Node.js support
-- Easy GitHub integration
-- Free tier available
-- Simple configuration
-- Good performance for the application size
+**Current State**:
+- Voice call works after matching
+- Missing direct entry mode
+- No immediate voice call flow
 
-### Database: SQLite
-**Rationale**:
-- File-based, no external dependencies
-- Perfect for small to medium applications
-- Easy backup and migration
-- No additional configuration needed
+**Next Steps**:
+- Modify matching service for voice entry mode
+- Update UI flow for direct voice calls
+- Ensure proper call preparation
 
-### Authentication: JWT
-**Rationale**:
-- Stateless authentication
-- Scalable and secure
-- Industry standard
-- Easy to implement and maintain
+**Files to Modify**:
+- `src/services/MatchingService.js` - Entry mode handling
+- `static/js/app.js` - Voice entry flow
+- `static/js/modules/voice_call_manager.js` - Call preparation
+
+### 4. Like System Enhancements (Priority: Medium)
+**Goal**: Add keep button and improve like question UI
+
+**Current State**:
+- Basic like system with 5-minute timer
+- Progressive photo reveal working
+- Missing keep conversation option
+
+**Next Steps**:
+- Add "Keep" button to like modal
+- Enhance like question UI design
+- Improve second round flow
+- Add photo filter effects
+
+**Files to Modify**:
+- `static/js/modules/like.js` - Like system logic
+- `templates/index.html` - Like modal UI
+- `src/routes/simple_countdown.js` - Keep functionality
+
+### 5. Visual Effects & Animations (Priority: Low)
+**Goal**: Add immersive visual effects and smooth transitions
+
+**Current State**:
+- Basic UI transitions
+- Missing zoom and blur effects
+- Limited visual feedback
+
+**Next Steps**:
+- Implement zoom effects in waiting room
+- Add blur effects for video background
+- Create smooth transition animations
+- Add loading state indicators
+
+**Files to Modify**:
+- `static/css/` - Animation styles
+- `static/js/modules/ui.js` - Transition logic
+- `templates/index.html` - Visual elements
+
+## Technical Debt & Improvements
+
+### Code Organization
+- **Voice Call Manager**: Some methods could be better organized
+- **Error Handling**: Standardize error messages across modules
+- **Event Management**: Centralize event handling patterns
+
+### Performance Optimizations
+- **Database Queries**: Optimize for larger user base
+- **WebSocket Events**: Batch events for efficiency
+- **Memory Management**: Improve cleanup of disconnected users
+
+### Testing & Quality
+- **Automated Testing**: Implement unit and integration tests
+- **Code Coverage**: Ensure comprehensive test coverage
+- **Performance Testing**: Load testing for concurrent users
+
+## Immediate Next Actions
+
+### This Week
+1. **Landing Page Video**: Implement café video background
+2. **Profile Steps 2-3**: Complete profile setup flow
+3. **Voice Entry Mode**: Test and refine direct voice call flow
+4. **Like System UI**: Add keep button and improve design
+
+### Next Week
+1. **Visual Effects**: Add zoom and blur animations
+2. **User Testing**: Conduct comprehensive user testing
+3. **Performance**: Optimize for larger user base
+4. **Documentation**: Update user guides and API docs
 
 ## Current Challenges
 
-### None Identified
-The system is in a stable state and ready for deployment. All core functionality is working and properly configured.
+### Technical Challenges
+1. **Video Background**: Implementing smooth video background with interactions
+2. **Profile Flow**: Complex multi-step form with validation
+3. **Voice Entry**: Seamless transition from matching to voice call
+4. **Visual Effects**: Cross-browser compatibility for animations
 
-## Monitoring & Health Checks
+### User Experience Challenges
+1. **Onboarding**: Making profile setup engaging and not overwhelming
+2. **Matching**: Ensuring users understand the matching process
+3. **Like System**: Making the like/reveal system intuitive
+4. **Voice Calls**: Reducing friction in voice call initiation
 
-### Health Check Endpoint
-- **URL**: `/health`
-- **Response**: JSON with system status
-- **Includes**: Database status, memory usage, uptime
-- **Purpose**: Monitor application health
+## Success Metrics
 
-### Logging
-- **Level**: Configurable via LOG_LEVEL
-- **File**: `./logs/app.log`
-- **Format**: Structured logging
-- **Monitoring**: Real-time log access via Render dashboard
+### Technical Metrics
+- **Page Load Time**: < 2 seconds for landing page
+- **Voice Call Setup**: < 3 seconds from match to call
+- **Message Delivery**: < 100ms latency
+- **Error Rate**: < 1% for critical operations
 
-## Success Criteria for Deployment
-1. ✅ Application starts successfully
-2. ✅ Health check returns "healthy"
-3. ✅ Database initializes properly
-4. ✅ WebSocket connections work
-5. ✅ Authentication system functions
-6. ✅ Chat functionality operates correctly
-7. ✅ File uploads work
-8. ✅ Error handling is robust
+### User Experience Metrics
+- **Profile Completion**: > 90% completion rate
+- **Like Response Rate**: > 80% response rate
+- **Voice Call Success**: > 95% successful calls
+- **User Retention**: > 70% 7-day retention
+
+## Development Environment
+
+### Current Setup
+- **Backend**: Node.js + Express + Socket.IO
+- **Database**: SQLite3 (production ready)
+- **Frontend**: Vanilla JavaScript with modular architecture
+- **Deployment**: Render.com (live at https://webchat-nodejs-draft.onrender.com)
+
+### Development Tools
+- **Code Editor**: VS Code with extensions
+- **Version Control**: Git with feature branches
+- **Testing**: Manual testing with multiple browsers
+- **Deployment**: Automated deployment via Render.com
+
+## Team Communication
+
+### Current Team
+- **Lead Developer**: AI Assistant (Claude)
+- **Product Owner**: User
+- **QA**: Manual testing by user
+
+### Communication Channels
+- **Code Reviews**: Through Git commits and pull requests
+- **Issue Tracking**: Through TODO lists and memory bank
+- **Documentation**: Memory bank and inline comments
+- **Testing**: Manual testing with user feedback
+
+## Risk Management
+
+### Technical Risks
+1. **Video Performance**: Large video files may impact loading
+2. **WebRTC Compatibility**: Browser compatibility issues
+3. **Database Scaling**: SQLite limitations with large user base
+4. **Memory Usage**: WebSocket connections and media streams
+
+### Mitigation Strategies
+1. **Video Optimization**: Compress video files and use efficient formats
+2. **WebRTC Fallbacks**: Implement fallback mechanisms
+3. **Database Migration**: Plan PostgreSQL migration path
+4. **Memory Monitoring**: Implement connection cleanup and monitoring
+
+## Next Memory Bank Update
+
+### When to Update
+- After completing major features
+- When user requests "update memory bank"
+- After significant architectural changes
+- When context needs clarification
+
+### Focus Areas for Next Update
+- Landing page video implementation
+- Profile setup completion
+- Voice entry mode refinement
+- User testing results and feedback
+
+---
+
+**Last Updated**: Current session
+**Next Review**: After landing page video implementation
+**Status**: Ready for enhancement phase

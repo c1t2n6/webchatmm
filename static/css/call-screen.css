@@ -1,0 +1,307 @@
+/* Call Screen UI Styles - Messenger/WhatsApp inspired */
+
+#call-screen {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: all 0.3s ease-in-out;
+}
+
+#call-screen.show {
+    display: flex !important;
+    animation: callScreenSlideIn 0.3s ease-out;
+}
+
+#call-screen.hide {
+    animation: callScreenSlideOut 0.3s ease-in;
+}
+
+@keyframes callScreenSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes callScreenSlideOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(100%);
+    }
+}
+
+/* Caller Avatar */
+#caller-avatar {
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s ease;
+}
+
+#caller-avatar:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.7);
+}
+
+/* Call Status Indicator */
+#call-status-indicator {
+    animation: pulse 2s infinite;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
+/* Call Controls */
+#call-mute,
+#call-speaker,
+#call-video {
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+#call-mute:hover,
+#call-speaker:hover,
+#call-video:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+#call-mute.active {
+    background-color: #ef4444 !important;
+    color: white !important;
+}
+
+#call-speaker.active {
+    background-color: #3b82f6 !important;
+    color: white !important;
+}
+
+/* End Call Button */
+#call-end {
+    transition: all 0.2s ease;
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+}
+
+#call-end:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 8px 25px rgba(239, 68, 68, 0.6);
+}
+
+#call-end:active {
+    transform: translateY(0) scale(0.95);
+}
+
+/* Call Duration */
+#call-duration {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    letter-spacing: 1px;
+}
+
+/* Quality Indicators */
+#call-quality .w-2 {
+    animation: qualityPulse 2s infinite;
+}
+
+@keyframes qualityPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.quality-excellent .w-2 {
+    background-color: #10b981;
+}
+
+.quality-good .w-2 {
+    background-color: #f59e0b;
+}
+
+.quality-poor .w-2 {
+    background-color: #ef4444;
+}
+
+/* Network Status */
+#call-network i {
+    transition: color 0.3s ease;
+}
+
+.network-excellent i {
+    color: #10b981;
+}
+
+.network-good i {
+    color: #f59e0b;
+}
+
+.network-poor i {
+    color: #ef4444;
+}
+
+/* Caller Name Animation */
+#caller-name {
+    background: linear-gradient(45deg, #fff, #e5e7eb, #fff);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Call Status Text */
+#caller-status {
+    animation: fadeInOut 2s ease-in-out infinite;
+}
+
+@keyframes fadeInOut {
+    0%, 100% {
+        opacity: 0.7;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+/* Footer Buttons */
+#call-keypad,
+#call-add,
+#call-more {
+    transition: all 0.2s ease;
+    padding: 8px;
+    border-radius: 50%;
+}
+
+#call-keypad:hover,
+#call-add:hover,
+#call-more:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: scale(1.1);
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+    #caller-avatar {
+        width: 24rem;
+        height: 24rem;
+    }
+    
+    #caller-name {
+        font-size: 1.5rem;
+    }
+    
+    #caller-status {
+        font-size: 1rem;
+    }
+    
+    .flex.items-center.space-x-6 {
+        gap: 1rem;
+    }
+    
+    #call-mute,
+    #call-speaker,
+    #call-video {
+        width: 3.5rem;
+        height: 3.5rem;
+    }
+    
+    #call-end {
+        width: 4rem;
+        height: 4rem;
+    }
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+    #call-screen {
+        background-color: rgba(0, 0, 0, 0.95);
+    }
+}
+
+/* Loading states */
+.call-loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.call-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    #call-screen,
+    #caller-avatar,
+    #call-status-indicator,
+    #call-mute,
+    #call-speaker,
+    #call-end,
+    #caller-name,
+    #caller-status {
+        animation: none;
+        transition: none;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    #call-screen {
+        background-color: rgba(0, 0, 0, 1);
+    }
+    
+    #caller-avatar {
+        border-color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .text-white {
+        color: #ffffff !important;
+    }
+    
+    .text-gray-300 {
+        color: #d1d5db !important;
+    }
+}

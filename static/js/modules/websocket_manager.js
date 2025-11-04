@@ -62,6 +62,15 @@ export class WebSocketManager {
                 console.log('🔌 WebSocket - Auto-joining room:', this.app.currentRoom.id);
                 this.websocket.emit('join-room', { roomId: this.app.currentRoom.id });
             }
+            
+            // ✅ NEW: Sync voice call state after reconnection
+            if (this.app.voiceCallManager) {
+                this.app.voiceCallManager.syncStateWithBackend().then(backendState => {
+                    if (backendState) {
+                        this.app.updateVoiceCallButtonState();
+                    }
+                });
+            }
         });
 
         this.websocket.on('message', (data) => {
@@ -151,6 +160,23 @@ export class WebSocketManager {
             this.websocket.emit('message', messageData, callback);
         }
         return true;
+    }
+
+    // Generic sender for custom events (voice/webrtc, etc.)
+    send(event, payload, callback) {
+        if (!this.websocket || !this.websocket.connected) {
+            console.log('🔌 WebSocket - Not connected, cannot send', event);
+            if (callback) callback({ status: 'error', message: 'Not connected' });
+            return false;
+        }
+        try {
+            this.websocket.emit(event, payload, callback);
+            return true;
+        } catch (error) {
+            console.error('🔌 WebSocket - Failed to send', event, error);
+            if (callback) callback({ status: 'error', message: 'Send failed' });
+            return false;
+        }
     }
 
     isConnected() {

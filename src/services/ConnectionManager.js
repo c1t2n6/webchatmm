@@ -116,6 +116,10 @@ class ConnectionManager {
         
         // ✅ SỬA: Sử dụng Socket.IO emit
         socket.emit('message', message);
+        // ✅ THÊM: Emit theo typed event nếu có 'type'
+        if (message && typeof message === 'object' && message.type) {
+          socket.emit(message.type, message);
+        }
         console.log(`📤 Message sent to user ${userId}:`, message.type);
         return true;
       } catch (error) {
@@ -167,6 +171,9 @@ class ConnectionManager {
             }
             
             socket.emit('message', message);
+            if (message && typeof message === 'object' && message.type) {
+              socket.emit(message.type, message);
+            }
             successCount++;
             console.log(`✅ Message sent to user ${userId}`);
           } catch (error) {
@@ -253,6 +260,18 @@ class ConnectionManager {
   async forceCloseRoom(roomId) {
     try {
       console.log(`🔒 Force closing room ${roomId}`);
+
+      // ✅ NEW: Check if there's an active call in this room
+      const voiceCallService = global.voiceCallService;
+      if (voiceCallService) {
+        // Get active calls in this room
+        const activeCall = voiceCallService.getActiveCallInRoom(roomId);
+        if (activeCall) {
+          // ✅ End call first với forceEndRoom = true (không check keep_active)
+          console.log(`📞 Ending call ${activeCall.id} before closing room`);
+          await voiceCallService.endCall(activeCall.id, null, 'room_ended', true); // true = force end room
+        }
+      }
 
       // ✅ THÊM: Stop all countdown/notification timers for this room
       try {

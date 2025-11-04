@@ -13,6 +13,7 @@ const Room = require('./models/Room');
 const Message = require('./models/Message');
 const ConnectionManager = require('./services/ConnectionManager');
 const WebSocketHandler = require('./services/WebSocketHandler');
+const VoiceCallService = require('./services/VoiceCallService');
 
 // Import routes
 const { router: authRouter, initUserModel } = require('./routes/auth');
@@ -24,6 +25,7 @@ const {
   handleUserDisconnect,
   handleUserReconnect
 } = require('./routes/simple_countdown');
+const { router: voiceCallRouter, initModels: initVoiceCallModels } = require('./routes/voice_call');
 
 // Import middleware
 const { generalLimiter } = require('./middleware/rateLimiter');
@@ -54,7 +56,7 @@ const io = socketIo(server, {
 
 // Initialize database
 const database = new Database();
-let userModel, roomModel, messageModel, connectionManager, webSocketHandler, matchingService;
+let userModel, roomModel, messageModel, connectionManager, webSocketHandler, matchingService, voiceCallService;
 
 // Middleware
 app.use(cors({
@@ -81,15 +83,27 @@ const initModels = () => {
   roomModel = new Room(database);
   messageModel = new Message(database);
   connectionManager = new ConnectionManager();
-  webSocketHandler = new WebSocketHandler(connectionManager, userModel, roomModel, messageModel);
+  
+  // Initialize voice call service
+  voiceCallService = new VoiceCallService(database, connectionManager);
+  
+  // ✅ NEW: Set global voice call service for auto-initiation
+  global.voiceCallService = voiceCallService;
+  
+  // Initialize WebSocket handler with voice call service
+  webSocketHandler = new WebSocketHandler(connectionManager, userModel, roomModel, messageModel, voiceCallService);
+  
   initUserModel(database);
   initChatModels(database, connectionManager);
   initUserProfileModel(database);
   initSimpleCountdownModels(database, connectionManager);
+  initVoiceCallModels(database, voiceCallService);
   
   // Get matching service from chat routes after initialization
   const { getMatchingService } = require('./routes/chat');
   matchingService = getMatchingService();
+  
+  console.log('✅ All models and services initialized with voice call support');
 };
 
 // Root endpoint (must be before other routes)
@@ -195,6 +209,7 @@ app.use('/auth', authRouter);
 app.use('/chat', chatRouter);
 app.use('/user', userRouter);
 app.use('/simple-countdown', simpleCountdownRouter);
+app.use('/api/voice-call', voiceCallRouter);
 
 // Error handling middleware (must be last)
 app.use(errorHandler.notFoundHandler);

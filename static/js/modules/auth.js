@@ -4,6 +4,11 @@ export class AuthModule {
         this.app = app;
     }
     
+    // ✅ THÊM: Method to get current token
+    getToken() {
+        return localStorage.getItem('access_token');
+    }
+    
     // ✅ THÊM: Method check token expiry
     isTokenExpired(token) {
         try {
@@ -19,7 +24,7 @@ export class AuthModule {
     async checkAuthStatus() {
         console.log('🔍 Auth - checkAuthStatus() called');
         
-        const token = localStorage.getItem('access_token');
+        const token = this.getToken();
         console.log('🔍 Auth - Token found:', !!token);
         
         if (token) {
@@ -54,8 +59,10 @@ export class AuthModule {
                     
                     // ✅ SỬA: Chỉ dùng database làm single source of truth
                     // Xóa localStorage check để tránh conflicts
-                    if (!this.app.currentUser.profile_completed) {
-                        console.log('🔍 Auth check - Showing profile wizard');
+                    // Check profile completion same as backend (handle both boolean and number values)
+                    const isProfileComplete = this.app.currentUser.profile_completed === true || this.app.currentUser.profile_completed === 1;
+                    if (!isProfileComplete) {
+                        console.log('🔍 Auth check - Profile not completed. Value:', this.app.currentUser.profile_completed, 'Type:', typeof this.app.currentUser.profile_completed);
                         this.app.uiModule.showProfileWizard();
                     } else {
                         console.log('🔍 Auth check - Profile completed, checking room status');
@@ -138,8 +145,10 @@ export class AuthModule {
                 this.app.uiModule.showAuthenticatedUI();
                 
                 // ✅ SỬA: Chỉ dùng database làm single source of truth  
-                if (!this.app.currentUser.profile_completed) {
-                    console.log('🔍 Login - Showing profile wizard');
+                // Check profile completion same as backend (handle both boolean and number values)
+                const isProfileComplete = this.app.currentUser.profile_completed === true || this.app.currentUser.profile_completed === 1;
+                if (!isProfileComplete) {
+                    console.log('🔍 Login - Profile not completed. Value:', this.app.currentUser.profile_completed, 'Type:', typeof this.app.currentUser.profile_completed);
                     this.app.uiModule.showProfileWizard();
                 } else {
                     console.log('🔍 Login - Profile completed, checking room status');
@@ -270,7 +279,7 @@ export class AuthModule {
         try {
             await fetch('/auth/logout', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                headers: { 'Authorization': `Bearer ${this.getToken()}` }
             });
         } catch (error) {
             console.error('Logout error:', error);

@@ -143,8 +143,15 @@ export class RoomManager {
             console.error('🏠 Room - Cancel search error:', error);
         }
         
-        this.app.websocketManager.disconnect();
+        // Reset search state
+        this.isSearching = false;
+        
+        // ✅ DON'T DISCONNECT WEBSOCKET - Keep connection for other features
+        console.log('🏠 Room - WebSocket connection preserved for other features');
+        
+        // Show waiting room
         this.app.uiModule.showWaitingRoom();
+        console.log('🏠 Room - Search cancelled and UI updated');
     }
 
     handleSearchTimeout() {
@@ -164,6 +171,14 @@ export class RoomManager {
             clearTimeout(this.searchTimeout);
             this.searchTimeout = null;
         }
+    }
+
+    stopSearchProgress() {
+        if (this.searchProgressInterval) {
+            clearInterval(this.searchProgressInterval);
+            this.searchProgressInterval = null;
+        }
+        console.log('🏠 Room - Search progress stopped');
     }
 
     startSearchProgress() {
@@ -223,11 +238,23 @@ export class RoomManager {
         this.clearSearchTimeout();
         this.stopSearchProgress();
         
+        // ✅ NEW: Check entry mode and route accordingly
+        const entryMode = data.entry_mode || 'chat';
+        console.log('🏠 Room - Entry mode detected:', entryMode);
+        
+        if (entryMode === 'voice') {
+            console.log('📞 Voice entry mode - routing to voice call handler');
+            await this.app.handleVoiceMatchFound(data);
+            return;
+        }
+        
+        // Regular chat flow
         if (data.room_id && data.matched_user) {
             this.app.currentRoom = {
                 id: data.room_id,
                 matched_user: data.matched_user,
-                icebreaker: data.icebreaker
+                icebreaker: data.icebreaker,
+                entry_mode: entryMode
             };
         } else if (data.room) {
             this.app.currentRoom = data.room;

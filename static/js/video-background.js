@@ -1,22 +1,50 @@
-// Video Background Controller
-class VideoBackgroundController {
+// Background Controller - Supports Video, GIF, or Image
+class BackgroundController {
     constructor() {
         this.video = document.getElementById('backgroundVideo');
-        this.videoContainer = document.getElementById('videoBackground');
+        this.gif = document.getElementById('backgroundGif');
+        this.image = document.getElementById('backgroundImage');
+        this.container = document.getElementById('backgroundContainer');
         this.isLoaded = false;
         this.isPlaying = false;
+        this.mediaType = null; // 'video', 'gif', or 'image'
         
         this.init();
     }
     
     init() {
-        if (!this.video) {
-            console.warn('Video background element not found');
+        // Determine which media type is being used
+        if (this.video && this.video.offsetParent !== null) {
+            this.mediaType = 'video';
+            this.setupVideoListeners();
+            this.preloadVideo();
+        } else if (this.gif && this.gif.offsetParent !== null) {
+            this.mediaType = 'gif';
+            this.setupImageListeners(this.gif);
+        } else if (this.image && this.image.offsetParent !== null) {
+            this.mediaType = 'image';
+            this.setupImageListeners(this.image);
+        } else {
+            console.warn('No background media element found');
             return;
         }
         
+        console.log(`Background type: ${this.mediaType}`);
+    }
+    
+    setupImageListeners(element) {
+        if (element.complete) {
+            this.handleLoad();
+        } else {
+            element.addEventListener('load', () => this.handleLoad());
+            element.addEventListener('error', () => this.handleError());
+        }
+    }
+    
+    setupVideoListeners() {
+        if (!this.video) return;
+        
         this.setupEventListeners();
-        this.preloadVideo();
     }
     
     setupEventListeners() {
@@ -83,26 +111,38 @@ class VideoBackgroundController {
     }
     
     showLoading() {
-        if (this.videoContainer) {
-            this.videoContainer.classList.add('video-loading');
+        if (this.container) {
+            this.container.classList.add('video-loading');
         }
     }
     
     hideLoading() {
-        if (this.videoContainer) {
-            this.videoContainer.classList.remove('video-loading');
+        if (this.container) {
+            this.container.classList.remove('video-loading');
         }
     }
     
     handleVideoError() {
-        console.warn('Video background failed to load, using fallback');
+        console.warn('Background media failed to load, using fallback');
         this.showFallbackBackground();
     }
     
+    handleError() {
+        console.warn('Background media failed to load, using fallback');
+        this.showFallbackBackground();
+    }
+    
+    handleLoad() {
+        this.isLoaded = true;
+        console.log(`✅ Background ${this.mediaType} loaded successfully`);
+    }
+    
     showFallbackBackground() {
-        if (this.videoContainer) {
-            this.videoContainer.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-            this.video.style.display = 'none';
+        if (this.container) {
+            this.container.style.background = 'linear-gradient(135deg, #2a1f1a 0%, #1a0f0a 100%)';
+            if (this.video) this.video.style.display = 'none';
+            if (this.gif) this.gif.style.display = 'none';
+            if (this.image) this.image.style.display = 'none';
         }
     }
     
@@ -130,20 +170,18 @@ class VideoBackgroundController {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    // Only initialize if video is supported
-    if (VideoBackgroundController.isVideoSupported()) {
-        window.videoBackground = new VideoBackgroundController();
-    } else {
-        console.warn('Video not supported, using fallback background');
-        // Show fallback background
-        const videoContainer = document.getElementById('videoBackground');
-        if (videoContainer) {
-            videoContainer.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-        }
-    }
+    // Initialize background controller (automatically detects video/gif/image)
+    window.backgroundController = new BackgroundController();
 });
 
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = VideoBackgroundController;
+    module.exports = BackgroundController;
 }
+
+// Keep VideoBackgroundController alias for backward compatibility
+if (typeof window !== 'undefined') {
+    window.VideoBackgroundController = BackgroundController;
+    window.videoBackground = window.backgroundController;
+}
+

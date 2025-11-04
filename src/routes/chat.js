@@ -31,8 +31,20 @@ const initModels = (db, connManager) => {
 // Search for chat partner
 router.post('/search', authenticateToken, searchLimiter, async (req, res) => {
   try {
-    const { type = 'chat' } = req.body;
-    const currentUser = req.user;
+    const { 
+      type = 'chat',
+      entry_mode = 'chat',  // ✅ NEW: Entry mode support
+      match_preference = 'same_entry_mode'  // ✅ NEW: Matching preference
+    } = req.body;
+    
+    // Get fresh user data from database (not just JWT payload)
+    const currentUser = await userModel.findById(req.user.id);
+    if (!currentUser) {
+      return res.status(404).json({
+        error: 'User not found',
+        detail: 'Không tìm thấy user'
+      });
+    }
 
     // Check if user is already in a room
     if (currentUser.current_room_id) {
@@ -48,7 +60,8 @@ router.post('/search', authenticateToken, searchLimiter, async (req, res) => {
               nickname: otherUser.nickname,
               avatar_url: otherUser.avatar_url
             },
-            icebreaker: "Bạn đã có sẵn phòng chat!"
+            icebreaker: "Bạn đã có sẵn phòng chat!",
+            entry_mode: room.entry_mode || 'chat'  // ✅ NEW: Include entry mode
           });
         }
       }
@@ -62,6 +75,16 @@ router.post('/search', authenticateToken, searchLimiter, async (req, res) => {
       });
     }
 
+    // Check if user profile is completed (handle both boolean and number values)
+    const isProfileComplete = currentUser.profile_completed === true || currentUser.profile_completed === 1;
+    if (!isProfileComplete) {
+      console.log(`⚠️ User ${currentUser.id} profile not completed. Value: ${currentUser.profile_completed}`);
+      return res.status(400).json({
+        error: 'Profile incomplete',
+        detail: 'Vui lòng hoàn thành hồ sơ trước khi tìm kiếm'
+      });
+    }
+
     // Check if user is banned
     if (await userModel.isBanned(currentUser)) {
       return res.status(403).json({
@@ -71,11 +94,14 @@ router.post('/search', authenticateToken, searchLimiter, async (req, res) => {
     }
 
     // Update user status
+    console.log(`🔍 Setting user ${currentUser.id} status to 'searching'`);
     await userModel.updateStatus(currentUser.id, 'searching');
 
     // Add to matching queue
     const searchResult = await global.matchingService.addToSearchQueue(currentUser.id, {
       type: type,
+      entry_mode: entry_mode,  // ✅ NEW: Pass entry mode
+      match_preference: match_preference,  // ✅ NEW: Pass matching preference
       user: currentUser
     });
 
@@ -109,12 +135,33 @@ router.post('/search', authenticateToken, searchLimiter, async (req, res) => {
 // Cancel search
 router.post('/cancel-search', authenticateToken, async (req, res) => {
   try {
-    const currentUser = req.user;
+    // Get fresh user data from database (not just JWT payload)
+    const currentUser = await userModel.findById(req.user.id);
+    if (!currentUser) {
+      return res.status(404).json({
+        error: 'User not found',
+        detail: 'Không tìm thấy user'
+      });
+    }
 
+    console.log(`🔍 Cancel search request from user ${currentUser.id}, current status: ${currentUser.status}`);
+
+    // ✅ IMPROVED: More tolerant cancellation logic
     if (currentUser.status !== 'searching') {
-      return res.status(400).json({
-        error: 'Not searching',
-        detail: 'Bạn không đang tìm kiếm'
+      console.log(`⚠️ User ${currentUser.id} not in searching status, but attempting cleanup anyway`);
+      
+      // Still try to clean up in case of inconsistent state
+      try {
+        await global.matchingService.removeFromSearchQueue(currentUser.id);
+        await userModel.updateStatus(currentUser.id, 'idle');
+        console.log(`✅ Cleanup completed for user ${currentUser.id}`);
+      } catch (cleanupError) {
+        console.log(`⚠️ Cleanup error for user ${currentUser.id}:`, cleanupError.message);
+      }
+      
+      return res.json({ 
+        message: 'Đã hủy tìm kiếm',
+        warning: 'Trạng thái không đồng bộ, đã làm sạch'
       });
     }
 
@@ -124,6 +171,7 @@ router.post('/cancel-search', authenticateToken, async (req, res) => {
     // Update user status
     await userModel.updateStatus(currentUser.id, 'idle');
 
+    console.log(`✅ Search cancelled successfully for user ${currentUser.id}`);
     res.json({ message: 'Đã hủy tìm kiếm' });
 
   } catch (error) {

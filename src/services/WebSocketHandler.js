@@ -1,13 +1,15 @@
 // WebSocket Handler for chat and status connections
 const jwt = require('jsonwebtoken');
 const config = require('../../config');
+const { createErrorResponse, createSuccessResponse } = require('../utils/voiceCallErrors');
 
 class WebSocketHandler {
-  constructor(connectionManager, userModel, roomModel, messageModel) {
+  constructor(connectionManager, userModel, roomModel, messageModel, voiceCallService = null) {
     this.connectionManager = connectionManager;
     this.userModel = userModel;
     this.roomModel = roomModel;
     this.messageModel = messageModel;
+    this.voiceCallService = voiceCallService;
   }
 
   // Handle chat WebSocket connection
@@ -216,10 +218,20 @@ class WebSocketHandler {
       });
     });
 
+    // === VOICE CALL HANDLERS ===
+    if (this.voiceCallService) {
+      this.setupVoiceCallHandlers(socket, roomId, user);
+    }
+
     // Handle disconnect
     socket.on('disconnect', async () => {
       console.log(`🔌 User ${user.id} disconnected from room ${roomId}`);
       await this.connectionManager.removeFromRoom(roomId, user.id);
+      
+      // Handle voice call disconnect
+      if (this.voiceCallService) {
+        await this.voiceCallService.handleUserDisconnect(user.id);
+      }
     });
     
     // Mark handlers as setup AFTER all handlers are registered
@@ -229,7 +241,13 @@ class WebSocketHandler {
 
   // Remove chat handlers
   removeChatHandlers(socket) {
-    const events = ['message', 'typing', 'like_response', 'heartbeat', 'disconnect'];
+    const events = [
+      'message', 'typing', 'like_response', 'heartbeat', 'disconnect',
+      // Voice call events
+      'voice_call_initiate', 'voice_call_accept', 'voice_call_reject', 'voice_call_hangup',
+      'webrtc_offer', 'webrtc_answer', 'ice_candidate',
+      'voice_call_mute', 'voice_call_unmute'
+    ];
     events.forEach(event => {
       socket.removeAllListeners(event);
     });
@@ -447,6 +465,253 @@ class WebSocketHandler {
 
     socket.emit('message', welcomeMessage);
     console.log(`👋 Welcome message sent to user ${user.id}`);
+  }
+
+  // Setup voice call handlers
+  setupVoiceCallHandlers(socket, roomId, user) {
+    console.log(`📞 Setting up voice call handlers for user ${user.id} in room ${roomId}`);
+
+    // ✅ REMOVED: Voice call invitation handlers - using direct call system
+
+    // Handle direct call initiation (for voice entry mode)
+    socket.on('voice_call_initiate', async (data) => {
+      try {
+        const { targetUserId } = data;
+        console.log(`📞 User ${user.id} initiating call to ${targetUserId}`);
+        
+        const result = await this.voiceCallService.initiateCall(user.id, targetUserId, roomId);
+        
+        if (result.success) {
+          socket.emit('voice_call_initiate_response', {
+            success: true,
+            data: result.data,
+            message: result.message
+          });
+        } else {
+          socket.emit('voice_call_initiate_response', {
+            success: false,
+            error: result.error
+          });
+        }
+
+      } catch (error) {
+        console.error('❌ Error handling call initiation:', error);
+        socket.emit('voice_call_initiate_response', {
+          success: false,
+          error: createErrorResponse('SYSTEM_ERROR', null, 'Lỗi khi xử lý yêu cầu gọi')
+        });
+      }
+    });
+
+    // Handle call acceptance
+    socket.on('voice_call_accept', async (data) => {
+      try {
+        const { callId } = data;
+        console.log(`📞 User ${user.id} accepting call ${callId}`);
+        
+        const result = await this.voiceCallService.acceptCall(callId, user.id);
+        
+        socket.emit('voice_call_accept_response', {
+          success: result.success,
+          error: result.error
+        });
+
+      } catch (error) {
+        console.error('❌ Error handling call acceptance:', error);
+        socket.emit('voice_call_accept_response', {
+          success: false,
+          error: 'Lỗi hệ thống'
+        });
+      }
+    });
+
+    // Handle call rejection
+    socket.on('voice_call_reject', async (data) => {
+      try {
+        const { callId, reason = 'user_rejected' } = data;
+        console.log(`📞 User ${user.id} rejecting call ${callId}`);
+        
+        const result = await this.voiceCallService.rejectCall(callId, user.id, reason);
+        
+        socket.emit('voice_call_reject_response', {
+          success: result.success,
+          error: result.error
+        });
+
+      } catch (error) {
+        console.error('❌ Error handling call rejection:', error);
+        socket.emit('voice_call_reject_response', {
+          success: false,
+          error: 'Lỗi hệ thống'
+        });
+      }
+    });
+
+    // Handle call hangup
+    socket.on('voice_call_hangup', async (data) => {
+      try {
+        const { callId, reason = 'user_hangup' } = data;
+        console.log(`📞 User ${user.id} hanging up call ${callId}`);
+        
+        const result = await this.voiceCallService.endCall(callId, user.id, reason);
+        
+        socket.emit('voice_call_hangup_response', {
+          success: result.success,
+          duration: result.duration,
+          error: result.error
+        });
+
+      } catch (error) {
+        console.error('❌ Error handling call hangup:', error);
+        socket.emit('voice_call_hangup_response', {
+          success: false,
+          error: 'Lỗi hệ thống'
+        });
+      }
+    });
+
+    // Handle WebRTC offer
+    socket.on('webrtc_offer', async (data) => {
+      try {
+        const { callId, offer } = data;
+        console.log(`📡 User ${user.id} sending WebRTC offer for call ${callId}`);
+        
+        const result = await this.voiceCallService.handleWebRTCOffer(callId, user.id, offer);
+        
+        if (!result.success) {
+          socket.emit('webrtc_error', {
+            callId,
+            error: result.error
+          });
+        }
+
+      } catch (error) {
+        console.error('❌ Error handling WebRTC offer:', error);
+        socket.emit('webrtc_error', {
+          error: 'Lỗi WebRTC offer'
+        });
+      }
+    });
+
+    // Handle WebRTC answer
+    socket.on('webrtc_answer', async (data) => {
+      try {
+        const { callId, answer } = data;
+        console.log(`📡 User ${user.id} sending WebRTC answer for call ${callId}`);
+        
+        const result = await this.voiceCallService.handleWebRTCAnswer(callId, user.id, answer);
+        
+        if (!result.success) {
+          socket.emit('webrtc_error', {
+            callId,
+            error: result.error
+          });
+        }
+
+      } catch (error) {
+        console.error('❌ Error handling WebRTC answer:', error);
+        socket.emit('webrtc_error', {
+          error: 'Lỗi WebRTC answer'
+        });
+      }
+    });
+
+    // Handle ICE candidate
+    socket.on('ice_candidate', async (data) => {
+      try {
+        const { callId, candidate } = data;
+        
+        const result = await this.voiceCallService.handleICECandidate(callId, user.id, candidate);
+        
+        if (!result.success) {
+          socket.emit('webrtc_error', {
+            callId,
+            error: result.error
+          });
+        }
+
+      } catch (error) {
+        console.error('❌ Error handling ICE candidate:', error);
+        socket.emit('webrtc_error', {
+          error: 'Lỗi ICE candidate'
+        });
+      }
+    });
+
+    // Handle mute toggle - Frontend only for simplified system
+    socket.on('voice_call_mute', async (data) => {
+      try {
+        const { callId } = data;
+        console.log(`🔇 User ${user.id} toggling mute for call ${callId}`);
+        
+        // ✅ SIMPLIFIED: Mute is handled in frontend only
+        // Just acknowledge the mute toggle
+        socket.emit('voice_call_mute_response', {
+          success: true,
+          isMuted: data.isMuted || false,
+          message: 'Mute handled in frontend'
+        });
+
+      } catch (error) {
+        console.error('❌ Error handling mute toggle:', error);
+        socket.emit('voice_call_mute_response', {
+          success: false,
+          error: 'Lỗi hệ thống'
+        });
+      }
+    });
+
+    // Handle audio quality update - Frontend only for simplified system
+    socket.on('voice_call_quality_update', async (data) => {
+      try {
+        const { callId, quality } = data;
+        console.log(`🎵 User ${user.id} updating audio quality to ${quality} for call ${callId}`);
+        
+        // ✅ SIMPLIFIED: Audio quality is handled in frontend only
+        // Just acknowledge the quality update
+        socket.emit('voice_call_quality_response', {
+          success: true,
+          message: 'Audio quality handled in frontend'
+        });
+
+      } catch (error) {
+        console.error('❌ Error handling quality update:', error);
+        socket.emit('voice_call_quality_response', {
+          success: false,
+          error: 'Lỗi hệ thống'
+        });
+      }
+    });
+
+    // Handle reconnection
+    socket.on('voice_call_reconnect', async (data) => {
+      try {
+        const { callId } = data;
+        console.log(`🔄 User ${user.id} attempting reconnection for call ${callId}`);
+        
+        const result = await this.voiceCallService.handleReconnection(callId, user.id);
+        
+        if (result.success) {
+          // Notify other party about reconnection
+          const callSession = this.voiceCallService.getActiveCall(callId);
+          if (callSession) {
+            const targetUserId = user.id === callSession.caller_id ? 
+              callSession.callee_id : callSession.caller_id;
+            
+            this.connectionManager.sendToUser(targetUserId, {
+              type: 'voice_call_reconnecting',
+              callId,
+              from: user.id
+            });
+          }
+        }
+
+      } catch (error) {
+        console.error('❌ Error handling reconnection:', error);
+      }
+    });
+
+    console.log(`✅ Voice call handlers setup completed for user ${user.id}`);
   }
 
   // Verify JWT token
