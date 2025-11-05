@@ -174,25 +174,51 @@ class MapmoApp {
         const startVoice = document.getElementById('startVoice');
         
         if (startChat) {
-            startChat.addEventListener('click', () => {
+            // ✅ FIX: Add visual feedback and prevent double clicks
+            startChat.addEventListener('click', (e) => {
                 console.log('📱 Start Chat button clicked');
                 console.log('📱 isSearching:', this.isSearching);
+                
                 if (this.isSearching) {
                     console.log('⚠️ Search already in progress, ignoring button click');
                     return;
                 }
+                
+                // ✅ FIX: Add visual feedback
+                const button = e.currentTarget;
+                button.style.opacity = '0.7';
+                button.style.pointerEvents = 'none';
+                
+                setTimeout(() => {
+                    button.style.opacity = '1';
+                    button.style.pointerEvents = 'auto';
+                }, 500);
+                
                 this.handleChatClick();
             });
         }
         
         if (startVoice) {
-            startVoice.addEventListener('click', () => {
+            // ✅ FIX: Add visual feedback and prevent double clicks
+            startVoice.addEventListener('click', (e) => {
                 console.log('📞 Start Voice button clicked');
                 console.log('📞 isSearching:', this.isSearching);
+                
                 if (this.isSearching) {
                     console.log('⚠️ Search already in progress, ignoring button click');
                     return;
                 }
+                
+                // ✅ FIX: Add visual feedback
+                const button = e.currentTarget;
+                button.style.opacity = '0.7';
+                button.style.pointerEvents = 'none';
+                
+                setTimeout(() => {
+                    button.style.opacity = '1';
+                    button.style.pointerEvents = 'auto';
+                }, 500);
+                
                 this.handleVoiceClick();
             });
         }
@@ -225,7 +251,8 @@ class MapmoApp {
 
         // Interest checkboxes
         document.querySelectorAll('.interest-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', () => this.profileModule.handleInterestSelection());
+            // ✅ FIX: Pass event parameter to handleInterestSelection
+            checkbox.addEventListener('change', (e) => this.profileModule.handleInterestSelection(e));
         });
 
         // Waiting room (handled in main bindEvents section above)

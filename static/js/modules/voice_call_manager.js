@@ -2017,7 +2017,7 @@ export class VoiceCallManager {
         this.endCall('rejected');
     }
 
-    handleCallEnded(data) {
+    async handleCallEnded(data) {
         console.log('📞 Call ended event received:', data);
         
         if (data.duration > 0) {

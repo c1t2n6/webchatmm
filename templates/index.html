@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapmo.vn - Chat Ẩn Danh</title>
     <link rel="stylesheet" href="/static/css/video-background.css">
+    <link rel="stylesheet" href="/static/css/voice_call.css">
+    <link rel="stylesheet" href="/static/css/voice-call-ui.css">
+    <link rel="stylesheet" href="/static/css/voice-call-enhanced.css">
+    <link rel="stylesheet" href="/static/css/call-screen.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -132,14 +137,21 @@
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
-    <!-- Video Background -->
-    <div class="video-background" id="videoBackground">
-        <video id="backgroundVideo" autoplay muted loop playsinline>
+    <!-- Background - Supports Video, GIF, or Image -->
+    <div class="background-container" id="backgroundContainer">
+        <!-- Video Background (if using video) -->
+        <video id="backgroundVideo" class="background-media" autoplay muted loop playsinline>
             <source src="/static/videos/background-loop.mp4" type="video/mp4">
-            <!-- Fallback cho browsers không support video -->
             Your browser does not support the video tag.
         </video>
-        <div class="video-overlay"></div>
+        
+        <!-- GIF Background (alternative to video - uncomment if using GIF) -->
+        <!-- <img id="backgroundGif" class="background-media" src="/static/videos/background-loop.gif" alt="Background" /> -->
+        
+        <!-- Image Background (alternative to video/GIF - uncomment if using image) -->
+        <!-- <img id="backgroundImage" class="background-media" src="/static/videos/background.jpg" alt="Background" /> -->
+        
+        <div class="background-overlay"></div>
     </div>
     
     <!-- Main Content -->
@@ -190,7 +202,7 @@
                     <button id="voiceBtn" class="group p-8 transparent-card rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary">
                         <div class="text-4xl mb-4">📞</div>
                         <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Voice Call</h3>
-                        <p class="text-gray-600 dark:text-gray-300">Gọi thoại (Sắp ra mắt)</p>
+                        <p class="text-gray-600 dark:text-gray-300">Gọi thoại ẩn danh với người lạ</p>
                     </button>
                 </div>
             </div>
@@ -662,16 +674,18 @@
                     <p class="text-gray-600 dark:text-gray-300 mb-8">Chọn cách kết nối với người khác</p>
                     
                     <div class="grid md:grid-cols-2 gap-6">
-                        <button id="startChat" class="p-6 transparent-button rounded-xl hover:shadow-lg transition-all duration-300">
-                            <div class="text-3xl mb-3">💬</div>
-                            <h4 class="text-xl font-semibold mb-2">Bắt đầu chat</h4>
-                            <p class="text-sm opacity-90">Tìm kiếm người phù hợp</p>
+                        <!-- Chat Entry Button -->
+                        <button id="startChat" class="group p-8 transparent-card rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary">
+                            <div class="text-4xl mb-4">💬</div>
+                            <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Bắt đầu chat</h3>
+                            <p class="text-gray-600 dark:text-gray-300">Tìm kiếm người phù hợp</p>
                         </button>
                         
-                        <button id="startVoice" class="p-6 bg-gradient-to-r from-accent to-primary text-white rounded-xl hover:shadow-lg transition-all duration-300 opacity-50 cursor-not-allowed">
-                            <div class="text-3xl mb-3">📞</div>
-                            <h4 class="text-xl font-semibold mb-2">Voice Call</h4>
-                            <p class="text-sm opacity-90">Sắp ra mắt</p>
+                        <!-- Voice Entry Button -->
+                        <button id="startVoice" class="group p-8 transparent-card rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary">
+                            <div class="text-4xl mb-4">📞</div>
+                            <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Voice Call</h3>
+                            <p class="text-gray-600 dark:text-gray-300">Gọi thoại ẩn danh</p>
                         </button>
                     </div>
                 </div>
@@ -685,8 +699,8 @@
                     <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-6"></div>
                     <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Đang tìm kiếm...</h3>
                     <p class="text-gray-600 dark:text-gray-300 mb-6">Tìm kiếm người phù hợp với bạn</p>
-                    <button id="cancelSearch" class="px-6 py-2 transparent-button rounded-lg transition-colors">
-                        Hủy tìm kiếm
+                    <button id="cancelSearch" class="px-6 py-2 transparent-button rounded-lg transition-colors hover:bg-red-500 hover:text-white">
+                        <i class="fas fa-times mr-2"></i>Hủy tìm kiếm
                     </button>
                 </div>
             </div>
@@ -709,6 +723,9 @@
                                 </div>
                             </div>
                             <div class="flex space-x-2">
+                                <button id="voice-call-btn" class="px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors hidden">
+                                    📞 Gọi
+                                </button>
                                 <button id="keepActive" class="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors">
                                     Giữ hoạt động
                                 </button>
@@ -775,6 +792,142 @@
             </div>
         </div>
     </main>
+
+    <!-- Call Screen UI -->
+    <div id="call-screen" class="fixed inset-0 bg-black bg-opacity-90 z-50 hidden">
+        <div class="flex flex-col h-full">
+            <!-- Call Header -->
+            <div class="flex justify-between items-center p-4 bg-black bg-opacity-50">
+                <div class="flex items-center space-x-3">
+                    <button id="call-minimize" class="text-white hover:text-gray-300 transition-colors">
+                        <i class="fas fa-chevron-down text-xl"></i>
+                    </button>
+                    <div class="text-white">
+                        <div class="text-sm opacity-75">Cuộc gọi</div>
+                        <div id="call-duration" class="text-lg font-semibold">00:00</div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div id="call-quality" class="flex items-center space-x-1">
+                        <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span class="text-white text-sm">Tuyệt vời</span>
+                    </div>
+                    <div id="call-network" class="flex items-center space-x-1">
+                        <i class="fas fa-wifi text-white text-sm"></i>
+                        <span class="text-white text-sm">4G</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Call Content -->
+            <div class="flex-1 flex flex-col items-center justify-center p-8">
+                <!-- Caller Avatar -->
+                <div class="relative mb-8">
+                    <div id="caller-avatar" class="w-32 h-32 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden">
+                        <img id="caller-avatar-img" src="" alt="Caller" class="w-full h-full object-cover">
+                        <div id="caller-avatar-placeholder" class="text-white text-4xl">
+                            <i class="fas fa-user"></i>
+                        </div>
+                    </div>
+                    <!-- Call Status Indicator -->
+                    <div id="call-status-indicator" class="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                        <i class="fas fa-phone text-white text-sm"></i>
+                    </div>
+                </div>
+
+                <!-- Caller Info -->
+                <div class="text-center mb-8">
+                    <h2 id="caller-name" class="text-white text-2xl font-semibold mb-2">Đang kết nối...</h2>
+                    <p id="caller-status" class="text-gray-300 text-lg">Đang gọi...</p>
+                </div>
+
+                <!-- Call Controls -->
+                <div class="flex items-center space-x-6">
+                    <!-- Mute Button -->
+                    <button id="call-mute" class="w-14 h-14 bg-gray-600 hover:bg-gray-500 rounded-full flex items-center justify-center transition-colors">
+                        <i class="fas fa-microphone text-white text-xl"></i>
+                    </button>
+
+                    <!-- Speaker Button -->
+                    <button id="call-speaker" class="w-14 h-14 bg-gray-600 hover:bg-gray-500 rounded-full flex items-center justify-center transition-colors">
+                        <i class="fas fa-volume-up text-white text-xl"></i>
+                    </button>
+
+                    <!-- End Call Button -->
+                    <button id="call-end" class="w-16 h-16 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-colors">
+                        <i class="fas fa-phone-slash text-white text-2xl"></i>
+                    </button>
+
+                    <!-- Video Button (for future) -->
+                    <button id="call-video" class="w-14 h-14 bg-gray-600 hover:bg-gray-500 rounded-full flex items-center justify-center transition-colors opacity-50 cursor-not-allowed">
+                        <i class="fas fa-video text-white text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Call Quality Info -->
+                <div id="call-quality-info" class="mt-8 text-center text-gray-400 text-sm">
+                    <div id="call-quality-text">Chất lượng: Tuyệt vời</div>
+                    <div id="call-network-info">Mạng: 4G - Ổn định</div>
+                </div>
+            </div>
+
+            <!-- Call Footer -->
+            <div class="p-4 bg-black bg-opacity-50">
+                <div class="flex justify-center space-x-4">
+                    <button id="call-keypad" class="text-white hover:text-gray-300 transition-colors">
+                        <i class="fas fa-th text-xl"></i>
+                    </button>
+                    <button id="call-add" class="text-white hover:text-gray-300 transition-colors">
+                        <i class="fas fa-user-plus text-xl"></i>
+                    </button>
+                    <button id="call-more" class="text-white hover:text-gray-300 transition-colors">
+                        <i class="fas fa-ellipsis-h text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voice Call Panel -->
+    <div id="voice-call-panel" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+            <!-- Call Status -->
+            <div id="call-status" class="mb-6">
+                <div class="w-20 h-20 bg-primary rounded-full mx-auto mb-4 flex items-center justify-center">
+                    <i class="fas fa-phone text-white text-2xl"></i>
+                </div>
+                <h3 id="call-status-title" class="text-xl font-bold text-gray-900 dark:text-white mb-2">Đang kết nối...</h3>
+                <p id="call-status-message" class="text-gray-600 dark:text-gray-300">Vui lòng chờ</p>
+            </div>
+
+            <!-- Audio Visualizer -->
+            <div id="audio-visualizer" class="mb-6 h-16 flex items-center justify-center">
+                <div class="flex space-x-1">
+                    <div class="w-1 bg-primary rounded-full animate-pulse" style="height: 20px;"></div>
+                    <div class="w-1 bg-primary rounded-full animate-pulse" style="height: 30px; animation-delay: 0.1s;"></div>
+                    <div class="w-1 bg-primary rounded-full animate-pulse" style="height: 25px; animation-delay: 0.2s;"></div>
+                    <div class="w-1 bg-primary rounded-full animate-pulse" style="height: 35px; animation-delay: 0.3s;"></div>
+                    <div class="w-1 bg-primary rounded-full animate-pulse" style="height: 20px; animation-delay: 0.4s;"></div>
+                </div>
+            </div>
+
+            <!-- Call Controls -->
+            <div id="call-controls" class="flex justify-center space-x-4">
+                <button id="mute-btn" class="w-12 h-12 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+                    <i class="fas fa-microphone text-gray-700 dark:text-gray-300"></i>
+                </button>
+                <button id="hangup-btn" class="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors">
+                    <i class="fas fa-phone-slash text-white"></i>
+                </button>
+                <button id="speaker-btn" class="w-12 h-12 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+                    <i class="fas fa-volume-up text-gray-700 dark:text-gray-300"></i>
+                </button>
+            </div>
+
+            <!-- Remote Audio Element -->
+            <audio id="remote-audio" autoplay></audio>
+        </div>
+    </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="/static/js/video-background.js"></script>

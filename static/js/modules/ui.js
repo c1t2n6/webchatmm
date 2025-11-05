@@ -123,19 +123,29 @@ export class UIModule {
     }
 
     setupDarkMode() {
+        // ✅ FIX: Restore dark mode state immediately on page load
+        const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+        if (savedDarkMode) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        
+        // Setup toggle button
         const darkModeToggle = document.getElementById('darkModeToggle');
         if (darkModeToggle) {
-            const isDark = localStorage.getItem('darkMode') === 'true';
+            // ✅ FIX: Remove existing listeners to avoid duplicates
+            const newToggle = darkModeToggle.cloneNode(true);
+            darkModeToggle.parentNode.replaceChild(newToggle, darkModeToggle);
             
-            if (isDark) {
-                document.documentElement.classList.add('dark');
-            }
-            
-            darkModeToggle.addEventListener('click', () => {
+            newToggle.addEventListener('click', () => {
                 document.documentElement.classList.toggle('dark');
                 const isDark = document.documentElement.classList.contains('dark');
                 localStorage.setItem('darkMode', isDark);
+                console.log('🔍 Dark mode toggled:', isDark);
             });
+        } else {
+            console.warn('🔍 Dark mode toggle button not found');
         }
     }
 }

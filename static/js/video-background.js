@@ -88,8 +88,21 @@ class BackgroundController {
         // Show loading state
         this.showLoading();
         
+        // ✅ FIX: Add timeout for video loading
+        const loadTimeout = setTimeout(() => {
+            if (!this.isLoaded) {
+                console.warn('Background video loading timeout, using fallback');
+                this.handleVideoError();
+            }
+        }, 10000); // 10 seconds timeout
+        
         // Preload video
         this.video.load();
+        
+        // Clear timeout when loaded
+        this.video.addEventListener('loadeddata', () => {
+            clearTimeout(loadTimeout);
+        }, { once: true });
     }
     
     playVideo() {
@@ -124,11 +137,22 @@ class BackgroundController {
     
     handleVideoError() {
         console.warn('Background media failed to load, using fallback');
+        this.hideLoading();
         this.showFallbackBackground();
+        
+        // ✅ FIX: Log error details for debugging
+        if (this.video) {
+            const error = this.video.error;
+            if (error) {
+                console.error('Video error code:', error.code);
+                console.error('Video error message:', error.message);
+            }
+        }
     }
     
     handleError() {
         console.warn('Background media failed to load, using fallback');
+        this.hideLoading();
         this.showFallbackBackground();
     }
     

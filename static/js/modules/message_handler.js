@@ -161,6 +161,8 @@ export class MessageHandler {
 
         // Store handlers for proper cleanup
         this.typingHandler = handleTyping;
+        
+        // ✅ FIX: Only use keydown to avoid duplicate handlers
         this.enterKeyHandler = (e) => {
             if (e.key === 'Enter' || e.keyCode === 13) {
                 e.preventDefault();
@@ -170,7 +172,7 @@ export class MessageHandler {
 
         // Send typing indicator when starting to type
         input.addEventListener('input', this.typingHandler);
-        input.addEventListener('keypress', this.enterKeyHandler);
+        // ✅ FIX: Only use keydown, remove keypress to avoid duplicates
         input.addEventListener('keydown', this.enterKeyHandler);
     }
 
@@ -179,7 +181,7 @@ export class MessageHandler {
         if (input && this.typingHandler && this.enterKeyHandler) {
             // Remove specific event listeners
             input.removeEventListener('input', this.typingHandler);
-            input.removeEventListener('keypress', this.enterKeyHandler);
+            // ✅ FIX: Only remove keydown handler
             input.removeEventListener('keydown', this.enterKeyHandler);
             console.log('💬 Message - Removed existing typing listeners');
         }

@@ -151,11 +151,22 @@ export class ProfileModule {
         }
     }
 
-    handleInterestSelection() {
+    handleInterestSelection(event) {
+        // ✅ FIX: Check limit before allowing the check
         const checkedBoxes = document.querySelectorAll('.interest-checkbox:checked');
-        if (checkedBoxes.length > 5) {
+        
+        // If already at limit and trying to check another one
+        if (checkedBoxes.length >= 5 && event.target.checked) {
             event.target.checked = false;
             this.app.utilsModule.showError('Chỉ được chọn tối đa 5 sở thích');
+            return;
+        }
+        
+        // ✅ FIX: Update visual feedback for selected interests count
+        const count = checkedBoxes.length;
+        const limitElement = document.querySelector('#step4 h4');
+        if (limitElement) {
+            limitElement.textContent = `Sở thích của bạn (${count}/5)`;
         }
     }
 

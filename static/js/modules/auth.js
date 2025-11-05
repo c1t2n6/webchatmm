@@ -106,6 +106,10 @@ export class AuthModule {
                 localStorage.removeItem('access_token');
                 this.app.uiModule.showLandingPage();
             }
+        } else {
+            // ✅ FIX: No token - show landing page
+            console.log('🔍 Auth - No token found, showing landing page');
+            this.app.uiModule.showLandingPage();
         }
     }
 
